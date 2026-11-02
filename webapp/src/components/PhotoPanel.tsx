@@ -6,7 +6,7 @@ import {
   applyTone,
   ditherToLines,
 } from "../imaging/raster";
-import { autoEnhance as applyEnhance, cropGray, type CropRect } from "../imaging/enhance";
+import { autoEnhance as applyEnhance, type CropRect } from "../imaging/enhance";
 import type { GrayImage } from "../imaging/raster";
 import { printLines } from "../transport/printerInstance";
 import { setState, useStore } from "../state/store";
@@ -36,52 +36,86 @@ export function PhotoPanel() {
   const [cropMode, setCropMode] = useState(false);
   const [dragRect, setDragRect] = useState<CropRect | null>(null);
   const [cropVersion, setCropVersion] = useState(0);
-  const crop = useStore((s) => s.image) ? cropRef.current : null;
+  const hasCrop = cropRef.current != null;
 
-  // Pipeline: rotate → fit → crop → auto-enhance → tone → dither.
+  /**
+   * Pipeline: rotate → fit(384) → [crop → re-fit from source at 384] →
+   * auto-enhance → tone → dither.
+   *
+   * The crop rectangle lives in FITTED coordinates and is mapped back to the
+   * source image, then re-rendered at full 384 px — crop = zoom, crisp result,
+   * rows always 48 bytes (the head width).
+   */
   useEffect(() => {
     if (!image || !previewRef.current) return;
     const rotated = rotation ? rotateSource(image, rotation) : image;
-    const fitted = fitToWidth(rotated, PRINTER_WIDTH, fitMode);
-    fittedGrayRef.current = toGray(fitted);
-    let gray = fittedGrayRef.current;
-    if (cropRef.current) gray = cropGray(gray, cropRef.current);
+    const scale = PRINTER_WIDTH / rotated.width;
+    fittedGrayRef.current = toGray(fitToWidth(rotated, PRINTER_WIDTH, fitMode));
+
+    const canvas = previewRef.current;
+
+    // ---- crop mode: show the full fitted image (undithered) + overlay rect ----
+    if (cropMode) {
+      const fitted = fittedGrayRef.current;
+      canvas.width = fitted.width * 2;
+      canvas.height = fitted.height * 2;
+      const ctx = canvas.getContext("2d")!;
+      ctx.imageSmoothingEnabled = false;
+      // crisp 2× gray view via offscreen canvas
+      const grayCanvas = document.createElement("canvas");
+      grayCanvas.width = fitted.width;
+      grayCanvas.height = fitted.height;
+      const rgba = new Uint8ClampedArray(fitted.gray.length * 4);
+      for (let i = 0; i < fitted.gray.length; i++) {
+        const v = fitted.gray[i];
+        rgba[i * 4] = v;
+        rgba[i * 4 + 1] = v;
+        rgba[i * 4 + 2] = v;
+        rgba[i * 4 + 3] = 255;
+      }
+      grayCanvas
+        .getContext("2d")!
+        .putImageData(new ImageData(rgba, fitted.width, fitted.height), 0, 0);
+      ctx.drawImage(grayCanvas, 0, 0, canvas.width, canvas.height);
+      const rect = dragRect ?? cropRef.current;
+      if (rect) {
+        ctx.strokeStyle = "#4fc3f7";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(rect.x * 2, rect.y * 2, rect.w * 2, rect.h * 2);
+      }
+      linesRef.current = null;
+      return;
+    }
+
+    // ---- normal mode: build the print raster ----
+    let source: CanvasImageSource = rotated;
+    if (cropRef.current) {
+      // crop (fitted coords) → source coords, then re-fit at full width
+      const sx = cropRef.current.x / scale;
+      const sy = cropRef.current.y / scale;
+      const sw = cropRef.current.w / scale;
+      const sh = cropRef.current.h / scale;
+      const cropCanvas = document.createElement("canvas");
+      cropCanvas.width = Math.max(1, Math.round(sw));
+      cropCanvas.height = Math.max(1, Math.round(sh));
+      const cctx = cropCanvas.getContext("2d")!;
+      cctx.drawImage(rotated, sx, sy, sw, sh, 0, 0, cropCanvas.width, cropCanvas.height);
+      source = cropCanvas;
+    }
+    const fitted = fitToWidth(source, PRINTER_WIDTH, "contain"); // crop fills the width
+    let gray = toGray(fitted);
     if (autoEnhance) gray = applyEnhance(gray);
     const toned = applyTone(gray, { gamma, contrast, brightness });
     const lines = ditherToLines(toned, dither === "gray" ? "threshold" : dither, threshold);
     linesRef.current = lines;
-    const canvas = previewRef.current;
+
+    // dithered 2× preview
     canvas.width = toned.width * 2;
     canvas.height = toned.height * 2;
     const ctx = canvas.getContext("2d")!;
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    if (cropMode) {
-      // undithered grayscale view for crop selection
-      const src = cropRef.current ? cropGray(fittedGrayRef.current!, cropRef.current) : fittedGrayRef.current!;
-      const img = ctx.createImageData(src.width, src.height);
-      for (let i = 0; i < src.gray.length; i++) {
-        const v = src.gray[i];
-        img.data[i * 4] = v;
-        img.data[i * 4 + 1] = v;
-        img.data[i * 4 + 2] = v;
-        img.data[i * 4 + 3] = 255;
-      }
-      ctx.putImageData(img, 0, 0);
-      // existing crop rect (fitted-image coords) or current drag rect
-      const rect = dragRect ?? cropRef.current;
-      if (rect) {
-        // if a crop is applied, the view is the crop → draw in view coords
-        const viewRect = cropRef.current && !dragRect
-          ? { x: 0, y: 0, w: src.width, h: src.height }
-          : rect;
-        ctx.strokeStyle = "#4fc3f7";
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 4]);
-        ctx.strokeRect(viewRect.x * 2, viewRect.y * 2, viewRect.w * 2, viewRect.h * 2);
-      }
-      return;
-    }
     ctx.fillStyle = "#111111";
     for (let y = 0; y < toned.height; y++) {
       const row = lines[y];
@@ -91,11 +125,12 @@ export function PhotoPanel() {
         }
       }
     }
-  }, [image, rotation, fitMode, dither, gamma, contrast, brightness, threshold, autoEnhance, cropMode, dragRect, cropVersion, crop]);
+  }, [image, rotation, fitMode, dither, gamma, contrast, brightness, threshold, autoEnhance, cropMode, dragRect, cropVersion]);
 
   const pickFile = async (file: File) => {
     const bitmap = await createImageBitmap(file);
     cropRef.current = null;
+    setCropMode(false);
     setState({ image: bitmap, imageName: file.name, rotation: 0 });
     setCropVersion((v) => v + 1);
   };
@@ -116,7 +151,7 @@ export function PhotoPanel() {
     setCropVersion((v) => v + 1);
   };
 
-  // pointer → image coordinates (canvas attribute px = image px × 2)
+  // pointer → fitted-image coordinates (canvas attribute px = image px × 2)
   const toImageCoords = (e: React.PointerEvent<HTMLCanvasElement>): { x: number; y: number } => {
     const canvas = previewRef.current!;
     const rect = canvas.getBoundingClientRect();
@@ -179,7 +214,11 @@ export function PhotoPanel() {
           {t.fitMode}:{" "}
           <select
             value={fitMode}
-            onChange={(e) => setState({ fitMode: e.target.value as typeof fitMode })}
+            onChange={(e) => {
+              cropRef.current = null; // fit changes invalidate the crop rect
+              setCropVersion((v) => v + 1);
+              setState({ fitMode: e.target.value as typeof fitMode });
+            }}
           >
             <option value="contain">{t.fitContain}</option>
             <option value="cover">{t.fitCover}</option>
@@ -188,7 +227,11 @@ export function PhotoPanel() {
         </label>
         <button
           className="secondary"
-          onClick={() => setState({ rotation: (rotation + 1) % 4 })}
+          onClick={() => {
+            cropRef.current = null; // rotation invalidates the crop rect
+            setCropVersion((v) => v + 1);
+            setState({ rotation: (rotation + 1) % 4 });
+          }}
           title={`${t.rotate} 90°`}
         >
           ⟳ 90°
@@ -237,7 +280,7 @@ export function PhotoPanel() {
                 <button className="secondary" onClick={() => setCropMode(true)}>
                   ✂ {t.cropMode}
                 </button>
-                {cropRef.current && (
+                {hasCrop && (
                   <button className="secondary" onClick={resetCrop}>
                     ✕ {t.cropReset}
                   </button>
