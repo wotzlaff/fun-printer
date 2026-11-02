@@ -37,5 +37,6 @@ jadx --no-res --no-debug-info -d /tmp/jadx-out extracted/com.fun.mxw.apk
 - [x] Print protocols (5178, ESC-y, 2221, 55AA, 5688, V5M) reconstructed
 - [x] Image pipeline (OpenCV, dithering, encoders) documented
 - [x] Reference encoder (`analysis/reference-encoder.py`) with CRC self-test
+- [x] Device identified: **MX10** → V5G model, 5178 protocol, 384 px @ 203 dpi (Doc 02)
 - [ ] Live verification on the device (BLE sniff) – open
 - [ ] Alternative UI – planned (basis: Doc 09)

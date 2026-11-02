@@ -83,3 +83,27 @@ Widths from: `0a9f.js` (v5: 384, v5pro: 576, v7: 576, v7pro: 832), `a061.js`
 Width in pixels = `floor(mm / 25.4 × 200 × f)` with correction factor f = 0.95–0.99
 per paper/device type (e.g. 40 mm → ~295–312 px). Margin data (rightBorder/topBorder)
 per device in `m()`/`b()` of `0a9f.js`.
+
+## The device in this project: MX10
+
+The actual printer is named **MX10**. Everything observed about it:
+
+| Aspect | Value | Evidence |
+|---|---|---|
+| Model class | **V5G** | `ble_name_config` (webpack module `3429`): `{name:"MX10", model:"V5G", module:"P0"}` |
+| Feature module | P0 (same class as MX01/MX02/MX03/BQ…) | ditto |
+| Protocol family | **"51 78" BLE protocol** → [Doc 04](04-protocol-5178.md) | model V5G dispatch (`e289.js` function `C`) |
+| Transport | BLE via `Ytbbluetooth` plugin (services `FF00`/`AE30`/`200A`) | Doc 03 |
+| Print width | **384 px**, dpi 203, paper width 5.7 (cm) | `set_printer_info` (`291c`): `case "V6": case "V5": case "V5G": case "V5X": model_img_width=384` |
+| Density handling | Member of `mx10_list` (`cc_nongdu_helper`, module `4bd5`): temperature-driven reduction `mx10_serial_nongdu` (thresholds 55/60/65/70/75 °C), minimum density **95**; multi-copy density management via `mx10_serial_continuous_nongdu`/`get_continuous_hex` | `dc2f.js`, `4bd5.js` |
+| Not member of | the `ie`/`le` F2-density lists in `0a9f.js`, the density config `7b53`, any `is_convert_*` board-remap list | verified |
+
+**Open point (flagged as inference):** the JS normalization in `0a9f.js` would remap
+the board name for MX10 as `"MX10".replace("MX","GT")` = `"GT10"` – but the native
+`PrinterModel.java` only knows GT01/GT02/MX02/MX03, so `V5g("GT10")` would throw an
+NPE. Since MX10 evidently works with the original app, either the label/photo print
+path for MX10 does not run through `V5g.getPrintData` with that name, or the
+server-driven `get_support_ble` config overrides the static mapping. This does not
+affect an alternative implementation: the wire protocol (Doc 04) is device-side and
+name-independent. Practical starting point: **GT01-like parameters** (384 px, 200 dpi,
+energy 12000, speed 55, 2× paper feed of 48 dots), then verify with a BLE sniff.

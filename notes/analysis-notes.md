@@ -50,8 +50,14 @@ the variable at startup – after setting it, the MCP client must be restarted.
   - A3 response layout (positions 4/10/12/14) on your own device,
   - GT01 constants `paperSize/printSize = 384` (jadx constant verified:
     `BitmapCounterConfig.DEFAULT_MAX_BITMAP_COUNT = 384`).
-- **Own printer model unknown**: the mapping depends on the BT name (Doc 02).
-  The MXW build suggests an MXW009/MXW010 board; check the name!
+- **Own printer identified**: the device announces itself as **MX10** → model class
+  **V5G** (module `3429` `ble_name_config`), 5178 BLE protocol, print width 384 px at
+  203 dpi (see Doc 02 section "The device in this project: MX10").
+- **MX10 board-name puzzle**: the JS would remap the board name to "GT10"
+  (`replace("MX","GT")`), which has no entry in native `PrinterModel.java` (NPE if
+  that path were taken). Either MX10 prints through a different entry point, or the
+  server-driven device config overrides the static mapping. Flagged as inference in
+  Doc 02; a BLE sniff of the original app printing one image resolves it.
 - **V8S/V8SPRO (Vson) and P7 (Weiturui)** print via closed plugin encoders
   (no hex format visible in JS); DEX classes exist (`Vsonprinter` module), but
   for these two families the raster path is not fully unraveled.

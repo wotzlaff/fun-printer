@@ -2,6 +2,9 @@
 """Reference encoder for the "51 78" BLE protocol of the Fun Print mini printers
 (GT01/GT02/MX01/MX02 boards, e.g. MXW009/MXW010).
 
+Target device of this project: **MX10** (model class V5G, 384 px @ 203 dpi) –
+defaults below follow the GT01 board constants from PrinterModel.java.
+
 Reconstructed from the decompiled original plugin:
   - analysis/decompiled/V5g.java          (getPrintData, eachLinePixToCmdB)
   - analysis/decompiled/V5gCMD.java       (paper, flowControl)

@@ -4,6 +4,10 @@ Responsible: `models/printer/v5g_label.js` (`4ab3`), `android_ble.js` (`dc2f`),
 `ble.js` (`c543`), encoder natively in `com.xyz.yintibao.library.V5g` and `V5gCMD`
 (see `analysis/decompiled/`).
 
+**This is the protocol of the project's device (MX10)** – model class V5G,
+384 px print width at 203 dpi. See [Doc 02](02-devices-and-models.md) for the
+device-specific facts and recommended starting parameters.
+
 ## Framing
 
 Every command is a BLE packet of the form (reconstructed from `V5g.java`,
