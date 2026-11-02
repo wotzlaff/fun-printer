@@ -16,6 +16,12 @@ export interface PersistedSettings {
 
 const GLOBAL_KEY = "fun-printer:settings:global";
 
+/**
+ * Bump when the shipped defaults change so stale stored values from older
+ * versions don't override them (old entries are ignored on load).
+ */
+const SETTINGS_VERSION = 2;
+
 const SETTINGS_FIELDS: (keyof PersistedSettings)[] = [
   "density",
   "gamma",
@@ -35,7 +41,8 @@ export function loadSettings(deviceName: string | null): void {
   try {
     const raw = localStorage.getItem(key(deviceName)) ?? localStorage.getItem(GLOBAL_KEY);
     if (!raw) return;
-    const parsed = JSON.parse(raw) as Partial<PersistedSettings>;
+    const parsed = JSON.parse(raw) as Partial<PersistedSettings> & { version?: number };
+    if (parsed.version !== SETTINGS_VERSION) return; // stale defaults → keep ours
     const patch: Record<string, unknown> = {};
     for (const field of SETTINGS_FIELDS) {
       const value = parsed[field];
@@ -64,7 +71,10 @@ export function saveSettings(deviceName: string | null): void {
         quality: state.quality,
         dither: state.dither,
       };
-      localStorage.setItem(key(deviceName), JSON.stringify(settings));
+      localStorage.setItem(
+        key(deviceName),
+        JSON.stringify({ version: SETTINGS_VERSION, ...settings }),
+      );
     } catch {
       // storage full/unavailable → non-fatal
     }
