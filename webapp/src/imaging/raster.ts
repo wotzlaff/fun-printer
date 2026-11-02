@@ -1,0 +1,97 @@
+/**
+ * 1 bpp rasterization matching the printer's expectations:
+ * rows of width/8 bytes, LSB-first (leftmost pixel = bit 0), bit 1 = black.
+ * (V5g.eachLinePixToCmdB in the original plugin; live-verified.)
+ */
+
+export interface GrayImage {
+  width: number;
+  height: number;
+  /** One gray byte per pixel (0..255). */
+  gray: Uint8Array;
+}
+
+/** Extract grayscale (Rec. 601 luma, as the original RGB2Gray) from ImageData. */
+export function toGray(image: ImageData): GrayImage {
+  const { width, height, data } = image;
+  const gray = new Uint8Array(width * height);
+  for (let i = 0; i < gray.length; i++) {
+    const r = data[i * 4];
+    const g = data[i * 4 + 1];
+    const b = data[i * 4 + 2];
+    gray[i] = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+  }
+  return { width, height, gray };
+}
+
+export function ditherToLines(
+  image: GrayImage,
+  mode: "floyd" | "threshold" = "floyd",
+): Uint8Array[] {
+  const { width, height, gray } = image;
+  const out = new Uint8Array(gray.length);
+  if (mode === "threshold") {
+    for (let i = 0; i < gray.length; i++) out[i] = gray[i] < 128 ? 1 : 0;
+  } else {
+    floydSteinberg(gray, width, height, out);
+  }
+  const rows: Uint8Array[] = [];
+  const bytesPerRow = Math.ceil(width / 8);
+  for (let y = 0; y < height; y++) {
+    const row = new Uint8Array(bytesPerRow);
+    for (let x = 0; x < width; x++) {
+      if (out[y * width + x]) row[x >> 3] |= 1 << (x & 7);
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+/** Floyd–Steinberg error diffusion (original uses OpenCV Floyd/Sierra for photos). */
+function floydSteinberg(
+  gray: Uint8Array,
+  width: number,
+  height: number,
+  out: Uint8Array,
+): void {
+  const buf = new Int16Array(gray);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      const old = buf[idx];
+      const next = old < 128 ? 0 : 255;
+      out[idx] = next === 0 ? 1 : 0; // black = 1
+      const err = old - next;
+      const push = (dx: number, dy: number, factor: number) => {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || nx >= width || ny >= height) return;
+        buf[ny * width + nx] += Math.trunc(err * factor);
+      };
+      push(1, 0, 7 / 16);
+      push(-1, 1, 3 / 16);
+      push(0, 1, 5 / 16);
+      push(1, 1, 1 / 16);
+    }
+  }
+}
+
+/** Scale/fit an image to the printer width (384 px) preserving aspect ratio. */
+export function fitToWidth(
+  source: ImageBitmap | HTMLImageElement | HTMLCanvasElement,
+  targetWidth = 384,
+): ImageData {
+  const srcW = source.width;
+  const srcH = source.height;
+  const targetHeight = Math.max(1, Math.round((srcH * targetWidth) / srcW));
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, targetWidth, targetHeight);
+  ctx.drawImage(source, 0, 0, targetWidth, targetHeight);
+  return ctx.getImageData(0, 0, targetWidth, targetHeight);
+}

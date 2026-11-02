@@ -17,6 +17,12 @@ Thumbs.db
 
 # Node tooling
 node_modules/
+webapp/dist/
+
+# Python
+__pycache__/
+*.pyc
+
 
 # Python
 __pycache__/

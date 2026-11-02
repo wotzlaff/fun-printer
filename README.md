@@ -10,8 +10,9 @@ as the basis for an **alternative UI**.
 
 ```
 docs/       Technical documentation (protocols, transports, image pipeline, …)
-analysis/   Evidence: decompiled Java classes + formatted JS modules
-notes/      Working notes: methodology, limitations, open points
+analysis/   Evidence: decompiled Java classes, formatted JS modules, tools
+notes/      Working notes: methodology, sniff guide, open points
+webapp/     Alternative UI: React + TypeScript + Vite (Web Bluetooth)
 external/   Original XAPK (not in Git)
 extracted/  Unpacked XAPK (not in Git)
 ```
@@ -38,5 +39,7 @@ jadx --no-res --no-debug-info -d /tmp/jadx-out extracted/com.fun.mxw.apk
 - [x] Image pipeline (OpenCV, dithering, encoders) documented
 - [x] Reference encoder (`analysis/reference-encoder.py`) with CRC self-test
 - [x] Device identified: **MX10** → V5G model, 5178 protocol, 384 px @ 203 dpi (Doc 02)
-- [ ] Live verification on the device (BLE sniff) – open
-- [ ] Alternative UI – planned (basis: Doc 09)
+- [x] Live verification on the device: BLE sniff, all frames CRC-OK (Doc 04)
+- [x] **Alternative UI: `webapp/`** – React + TypeScript + Vite, Web Bluetooth,
+      DE/EN, photo printing with live 1 bpp preview (see `webapp/README.md`)
+- [ ] On-device test of the web app (Chrome/Edge, HTTPS/localhost) – open

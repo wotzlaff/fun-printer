@@ -1,0 +1,26 @@
+{
+  "name": "fun-printer-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Alternative UI for small Chinese Bluetooth thermal printers (MX10 / '51 78' BLE protocol)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/web-bluetooth": "^0.0.22",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "~5.6.3",
+    "vite": "^6.0.3",
+    "vitest": "^2.1.8"
+  }
+}
