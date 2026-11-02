@@ -65,6 +65,8 @@ export const de = {
   fontSize: "Schriftgröße",
   bold: "Fett",
   labelWidth: "Labelbreite",
+  labelWidthFull: "volle Kopfbreite (48 mm)",
+  qrFullWidth: "QR auf volle Breite",
   positioning: "Positionierung via schwarzer Marke",
   positioningHint:
     "Experimentell: benötigt eine Label-Rolle mit schwarzen Markierungen und einen Sensor im Drucker. Geräte ohne Sensor (z. B. MX10) brechen nach ~2 s ohne Druck ab.",
@@ -141,6 +143,8 @@ export const en: Strings = {
   fontSize: "Font size",
   bold: "Bold",
   labelWidth: "Label width",
+  labelWidthFull: "full head width (48 mm)",
+  qrFullWidth: "QR full width",
   positioning: "Black-mark positioning",
   positioningHint:
     "Experimental: requires label rolls with black marks and a sensor in the printer. Devices without a sensor (e.g. MX10) abort after ~2 s without printing.",

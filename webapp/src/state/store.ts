@@ -42,7 +42,8 @@ export interface AppState {
   labelTitle: string;
   labelBody: string;
   labelQr: string;
-  labelWidthMm: number;
+  labelWidthMm: number; // 0 = full head width
+  qrFullWidth: boolean;
   positioning: boolean; // black-mark positioning (experimental)
   error: string | null;
 }
@@ -75,6 +76,7 @@ let state: AppState = {
   labelBody: "",
   labelQr: "",
   labelWidthMm: 30,
+  qrFullWidth: false,
   positioning: false,
   error: null,
 };

@@ -12,6 +12,7 @@ export function LabelPanel() {
   const labelBody = useStore((s) => s.labelBody);
   const labelQr = useStore((s) => s.labelQr);
   const labelWidthMm = useStore((s) => s.labelWidthMm);
+  const qrFullWidth = useStore((s) => s.qrFullWidth);
   const positioning = useStore((s) => s.positioning);
   const previewRef = useRef<HTMLCanvasElement>(null);
   const linesRef = useRef<Uint8Array[] | null>(null);
@@ -29,6 +30,7 @@ export function LabelPanel() {
       title: labelTitle,
       body: labelBody,
       qr: labelQr,
+      qrFullWidth,
     })
       .then((imageData) => {
         if (cancelled || !previewRef.current) return;
@@ -55,7 +57,7 @@ export function LabelPanel() {
     return () => {
       cancelled = true;
     };
-  }, [labelTitle, labelBody, labelQr, labelWidthMm]);
+  }, [labelTitle, labelBody, labelQr, labelWidthMm, qrFullWidth]);
 
   const onPrint = () => {
     if (!linesRef.current || !previewRef.current) return;
@@ -80,10 +82,19 @@ export function LabelPanel() {
           >
             {LABEL_WIDTHS_MM.map((mm) => (
               <option key={mm} value={mm}>
-                {mm} mm
+                {mm === 0 ? t.labelWidthFull : `${mm} mm`}
               </option>
             ))}
           </select>
+        </label>
+        <label className="inline">
+          <input
+            type="checkbox"
+            checked={qrFullWidth}
+            onChange={(e) => setState({ qrFullWidth: e.target.checked })}
+            disabled={!labelQr.trim()}
+          />
+          {t.qrFullWidth}
         </label>
         <label className="inline">
           <input

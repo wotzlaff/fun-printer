@@ -3,8 +3,33 @@ import { crc8 } from "../protocol/crc8";
 import { scanFrames } from "../protocol/frames";
 import { encodePrintJob } from "../protocol/printJob";
 import { grayLines } from "./grayPrint";
-import { mmToLabelPx, LABEL_WIDTHS_MM } from "./labelRender";
+import {
+  mmToLabelPx,
+  LABEL_WIDTHS_MM,
+  contentWidthFor,
+  qrPixelSize,
+} from "./labelRender";
 import { wrapText } from "./textRender";
+
+describe("QR full width", () => {
+  it("computes an integer module scale with quiet zone", () => {
+    // typical QR version 2 = 25 modules; 224 px content → scale 8 → 200 px + quiet 32
+    const s = qrPixelSize(224, 25);
+    expect(s.scale).toBe(7); // floor(224 / 29) = 7
+    expect(s.size).toBe(7 * 29);
+  });
+  it("never exceeds the target width", () => {
+    for (const width of [100, 224, 295, 374, 384]) {
+      const s = qrPixelSize(width, 25);
+      expect(s.size).toBeLessThanOrEqual(width);
+    }
+  });
+  it("width 0 selects the full head width", () => {
+    expect(contentWidthFor(0)).toBe(384);
+    expect(contentWidthFor(30)).toBe(mmToLabelPx(30));
+    expect(mmToLabelPx(50)).toBeLessThan(384);
+  });
+});
 
 describe("gray print experiment", () => {
   it("encodes one gray byte per pixel and validates the frame LEN", () => {
@@ -40,8 +65,8 @@ describe("label metrics", () => {
     expect(mmToLabelPx(30)).toBe(Math.floor((30 / 25.4) * 200 * 0.95));
     expect(mmToLabelPx(50)).toBe(374); // 50/25.4*200*0.95 = 374.01 → 374
   });
-  it("offers the documented label widths", () => {
-    expect([...LABEL_WIDTHS_MM]).toEqual([20, 25, 30, 40, 50]);
+  it("offers the documented label widths plus full head width", () => {
+    expect([...LABEL_WIDTHS_MM]).toEqual([0, 20, 25, 30, 40, 50]);
   });
 });
 
