@@ -63,6 +63,17 @@ export const setSpeed = (speed: number) => frame(0xbd, bytes(speed & 0xff));
 /** Paper feed in dots (0x30 = 48 dots at 200 dpi). */
 export const paperFeed = (dots = 0x30) => frame(0xa1, bytes(dots, 0x00));
 
+// ---------------- label positioning (docs/06, experimental) ----------------
+/** Start position measurement (before each label). */
+export const labelMeasure = () => frame(0xa1, bytes(0x04, 0x00));
+/** Advance to next label (between copies). */
+export const labelNext = () => frame(0xa1, bytes(0x09, 0x00));
+/** Position reached → print here. */
+export const labelPositionFound = () => frame(0xa1, bytes(0x10, 0x00));
+/** Send the learned mark threshold (gujian: avg 16-bit + 0x20). */
+export const labelLearnedThreshold = (avg: number) =>
+  frame(0xf0, bytes((avg >> 8) & 0xff, avg & 0xff, 0x20));
+
 /** Raster start marker (lattice). */
 export const LATTICE_START = Uint8Array.from(
   "5178A6000B00AA551738445F5F5F44382CA1FF".match(/.{2}/g)!.map((h) => parseInt(h, 16)),
@@ -98,7 +109,11 @@ export function scanFrames(
     }
     const cmd = buf[i + 2];
     const b3 = buf[i + 3];
-    const candidates = b3 === 0 ? [buf[i + 4]] : [buf[i + 4], b3];
+    const b4 = buf[i + 4];
+    // Layout A (app→printer): LEN is the full 16-bit value (gray lines: 384 B).
+    // Layout B (device→app): b3 = flags, b4 = payload length.
+    // Try 16-bit first, then both single-byte readings; CRC decides.
+    const candidates = b3 === 0 ? [b4] : [(b3 << 8) | b4, b4, b3];
     for (const plen of candidates) {
       const end = i + 6 + plen;
       if (end + 2 > buf.length) continue; // this candidate incomplete

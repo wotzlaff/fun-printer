@@ -1,9 +1,10 @@
 /**
  * App-level printer singleton: one Printer instance, wired to the global store.
- * Both the connection panel and the print controls use it.
+ * Photo/text/label panels use the high-level helpers here.
  */
 import { Printer } from "./bluetooth";
-import { setState } from "../state/store";
+import { setState, getState } from "../state/store";
+import { addHistory } from "../state/history";
 
 let printer: Printer | null = null;
 
@@ -22,18 +23,72 @@ export function getPrinter(): Printer {
   return printer;
 }
 
-/** Print pre-encoded lines with the current tone/print settings; resolves on completion. */
+interface PrintRequest {
+  lines: Uint8Array[];
+  width: number;
+  height: number;
+  name: string;
+  /** Thumbnail dataURL for the history (optional). */
+  thumb?: string;
+}
+
+async function runPrint(request: PrintRequest): Promise<void> {
+  const state = getState();
+  setState({ printing: true, progress: null, error: null });
+  try {
+    const printer = getPrinter();
+    const options = {
+      density: state.density,
+      quality: state.quality,
+      copies: state.copies,
+    };
+    if (state.tab === "label" && state.positioning) {
+      await printer.printLabel(request.lines, options);
+    } else {
+      await printer.print(request.lines, options);
+    }
+    await addHistory({
+      ts: Date.now(),
+      name: request.name,
+      width: request.width,
+      height: request.height,
+      thumb: request.thumb ?? "",
+      lines: request.lines,
+      settings: {
+        density: state.density,
+        gamma: state.gamma,
+        contrast: state.contrast,
+        brightness: state.brightness,
+        threshold: state.threshold,
+        quality: state.quality,
+        dither: state.dither,
+      },
+    });
+    setState({ printing: false });
+  } catch (error) {
+    setState({
+      printing: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/** Print lines with the current tone/print settings (all modes). */
 export async function printLines(
   lines: Uint8Array[],
-  density: number,
-  quality: number,
-  onDone: () => void,
-  onError: (message: string) => void,
+  width: number,
+  height: number,
+  name: string,
+  thumb?: string,
 ): Promise<void> {
+  await runPrint({ lines, width, height, name, thumb });
+}
+
+/** Manual paper feed. */
+export async function feedPaper(): Promise<void> {
   try {
-    await getPrinter().print(lines, { density, quality });
-    onDone();
+    await getPrinter().feed();
   } catch (error) {
-    onError(error instanceof Error ? error.message : String(error));
+    setState({ error: error instanceof Error ? error.message : String(error) });
   }
 }

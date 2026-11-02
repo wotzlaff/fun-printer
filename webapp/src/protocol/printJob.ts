@@ -17,7 +17,12 @@ import {
   statusQuery,
 } from "./frames";
 
-/** Print-job tuning. All fields optional; defaults live-verified on the MX10. */
+/**
+ * Print-job tuning. All fields optional; defaults live-verified on the MX10.
+ * Line data (function argument): 1 bpp rows (width/8 bytes) for dot printing,
+ * or one gray byte per pixel for the experimental gray mode (LEN differs
+ * automatically).
+ */
 export interface PrintJobOptions {
   /** Density/"Nongdu" 1..200 (live MX10: 200). */
   density?: number;

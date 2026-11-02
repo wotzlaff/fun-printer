@@ -107,22 +107,82 @@ function floydSteinberg(
   }
 }
 
-/** Scale/fit an image to the printer width (384 px) preserving aspect ratio. */
+/** How the image fills the print area. */
+export type FitMode = "contain" | "cover" | "stretch";
+
+/** Scale/fit an image to the printer width (384 px). */
 export function fitToWidth(
   source: ImageBitmap | HTMLImageElement | HTMLCanvasElement,
   targetWidth = 384,
+  mode: FitMode = "contain",
 ): ImageData {
   const srcW = source.width;
   const srcH = source.height;
-  const targetHeight = Math.max(1, Math.round((srcH * targetWidth) / srcW));
   const canvas = document.createElement("canvas");
   canvas.width = targetWidth;
-  canvas.height = targetHeight;
+
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, targetWidth, targetHeight);
-  ctx.drawImage(source, 0, 0, targetWidth, targetHeight);
-  return ctx.getImageData(0, 0, targetWidth, targetHeight);
+
+  if (mode === "stretch") {
+    const targetHeight = Math.max(1, Math.round((srcH * targetWidth) / srcW));
+    canvas.height = targetHeight;
+    ctx.fillRect(0, 0, targetWidth, targetHeight);
+    ctx.drawImage(source, 0, 0, targetWidth, targetHeight);
+    return ctx.getImageData(0, 0, targetWidth, targetHeight);
+  }
+
+  const scale = mode === "cover"
+    ? Math.max(targetWidth / srcW, targetWidth / srcH) // cover: also crops vertically
+    : targetWidth / srcW; // contain: whole width, keep aspect
+  const drawW = srcW * scale;
+  const drawH = srcH * scale;
+
+  if (mode === "cover") {
+    // crop the source to the target aspect before scaling (center crop)
+    const cropH = Math.min(srcH, srcW * (drawH / drawW));
+    const cropW = Math.min(srcW, targetWidth / scale);
+    canvas.height = Math.max(1, Math.round(targetWidth / (cropW / cropH)));
+    ctx.fillRect(0, 0, targetWidth, canvas.height);
+    ctx.drawImage(
+      source,
+      (srcW - cropW) / 2,
+      (srcH - cropH) / 2,
+      cropW,
+      cropH,
+      0,
+      0,
+      targetWidth,
+      canvas.height,
+    );
+  } else {
+    const targetHeight = Math.max(1, Math.round(drawH));
+    canvas.height = targetHeight;
+    ctx.fillRect(0, 0, targetWidth, targetHeight);
+    ctx.drawImage(source, 0, 0, srcW, srcH, 0, 0, drawW, drawH);
+  }
+  return ctx.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+/** Rotate a source image by quarter turns before fitting. */
+export function rotateSource(
+  source: ImageBitmap | HTMLImageElement | HTMLCanvasElement,
+  quarterTurns: number,
+): HTMLCanvasElement {
+  const turns = ((quarterTurns % 4) + 4) % 4;
+  const canvas = document.createElement("canvas");
+  if (turns % 2 === 0) {
+    canvas.width = source.width;
+    canvas.height = source.height;
+  } else {
+    canvas.width = source.height;
+    canvas.height = source.width;
+  }
+  const ctx = canvas.getContext("2d")!;
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((turns * Math.PI) / 2);
+  ctx.drawImage(source, -source.width / 2, -source.height / 2);
+  return canvas;
 }

@@ -5,8 +5,11 @@
 import { useSyncExternalStore } from "react";
 import type { StatusInfo } from "../protocol/status";
 import type { PrintProgress } from "../transport/bluetooth";
+import type { FitMode } from "../imaging/raster";
 
 export type ConnectionState = "disconnected" | "connecting" | "connected";
+export type PrintTab = "photo" | "text" | "label" | "history";
+export type RasterMode = "floyd" | "threshold" | "gray";
 
 export interface AppState {
   connection: ConnectionState;
@@ -16,18 +19,31 @@ export interface AppState {
   flowPaused: boolean;
   progress: PrintProgress | null;
   printing: boolean;
+  tab: PrintTab;
+  // photo
   image: ImageBitmap | null;
   imageName: string | null;
-  dither: "floyd" | "threshold";
+  rotation: number; // quarter turns
+  fitMode: FitMode;
+  // raster / tone
+  dither: RasterMode;
   density: number;
-  /** Tone preprocessing (thermal paper needs darkening, see docs/07). */
   gamma: number;
   contrast: number;
   brightness: number;
-  /** Binarization threshold (original app used 170, not 128). */
   threshold: number;
-  /** A4 quality level 1..5 (live MX10 used 4). */
   quality: number;
+  copies: number;
+  // text
+  textContent: string;
+  fontSize: number;
+  bold: boolean;
+  // label
+  labelTitle: string;
+  labelBody: string;
+  labelQr: string;
+  labelWidthMm: number;
+  positioning: boolean; // black-mark positioning (experimental)
   error: string | null;
 }
 
@@ -39,8 +55,11 @@ let state: AppState = {
   flowPaused: false,
   progress: null,
   printing: false,
+  tab: "photo",
   image: null,
   imageName: null,
+  rotation: 0,
+  fitMode: "contain",
   dither: "floyd",
   density: 200,
   gamma: 2.0,
@@ -48,6 +67,15 @@ let state: AppState = {
   brightness: 0,
   threshold: 170,
   quality: 4,
+  copies: 1,
+  textContent: "",
+  fontSize: 24,
+  bold: true,
+  labelTitle: "",
+  labelBody: "",
+  labelQr: "",
+  labelWidthMm: 30,
+  positioning: false,
   error: null,
 };
 

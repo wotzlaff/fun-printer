@@ -44,5 +44,7 @@ jadx --no-res --no-debug-info -d /tmp/jadx-out extracted/com.fun.mxw.apk
 - [x] Device identified: **MX10** → V5G model, 5178 protocol, 384 px @ 203 dpi (Doc 02)
 - [x] Live verification on the device: BLE sniff, all frames CRC-OK (Doc 04)
 - [x] **Alternative UI: `webapp/`** – React + TypeScript + Vite, Web Bluetooth,
-      DE/EN, photo printing with live 1 bpp preview (see `webapp/README.md`)
-- [ ] On-device test of the web app (Chrome/Edge, HTTPS/localhost) – open
+      DE/EN, PWA. Photo (rotate/fit/tone/raster modes, copies), text, label
+      (QR, black-mark positioning ⚗), print history (IndexedDB), settings
+      persistence (see `webapp/README.md`)
+- [ ] On-device test of the web app incl. label positioning + gray mode – open

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import {
   fitToWidth,
+  rotateSource,
   toGray,
   applyTone,
   ditherToLines,
@@ -11,9 +12,12 @@ import { useI18n } from "../i18n";
 
 const PRINTER_WIDTH = 384;
 
-export function ImagePanel() {
+export function PhotoPanel() {
   const { t } = useI18n();
   const image = useStore((s) => s.image);
+  const imageName = useStore((s) => s.imageName);
+  const rotation = useStore((s) => s.rotation);
+  const fitMode = useStore((s) => s.fitMode);
   const dither = useStore((s) => s.dither);
   const density = useStore((s) => s.density);
   const gamma = useStore((s) => s.gamma);
@@ -21,17 +25,17 @@ export function ImagePanel() {
   const brightness = useStore((s) => s.brightness);
   const threshold = useStore((s) => s.threshold);
   const quality = useStore((s) => s.quality);
-  const printing = useStore((s) => s.printing);
   const previewRef = useRef<HTMLCanvasElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const linesRef = useRef<Uint8Array[] | null>(null);
 
-  // Re-dither + re-draw the 1 bpp preview whenever image or tone settings change.
+  // Re-dither + re-draw the 1 bpp preview whenever image or settings change.
   useEffect(() => {
     if (!image || !previewRef.current) return;
-    const imageData = fitToWidth(image, PRINTER_WIDTH);
+    const rotated = rotation ? rotateSource(image, rotation) : image;
+    const imageData = fitToWidth(rotated, PRINTER_WIDTH, fitMode);
     const toned = applyTone(toGray(imageData), { gamma, contrast, brightness });
-    const lines = ditherToLines(toned, dither, threshold);
+    const lines = ditherToLines(toned, dither === "gray" ? "threshold" : dither, threshold);
     linesRef.current = lines;
     const canvas = previewRef.current;
     canvas.width = PRINTER_WIDTH * 2;
@@ -48,28 +52,27 @@ export function ImagePanel() {
         }
       }
     }
-  }, [image, dither, gamma, contrast, brightness, threshold]);
+  }, [image, rotation, fitMode, dither, gamma, contrast, brightness, threshold]);
 
   const pickFile = async (file: File) => {
     const bitmap = await createImageBitmap(file);
-    setState({ image: bitmap, imageName: file.name });
+    setState({ image: bitmap, imageName: file.name, rotation: 0 });
   };
 
   const onPrint = () => {
-    if (!linesRef.current) return;
-    setState({ printing: true, progress: null, error: null });
+    if (!linesRef.current || !previewRef.current) return;
     void printLines(
       linesRef.current,
-      density,
-      quality,
-      () => setState({ printing: false }),
-      (message) => setState({ printing: false, error: message }),
+      PRINTER_WIDTH,
+      linesRef.current.length,
+      imageName ?? "photo",
+      previewRef.current.toDataURL("image/png"),
     );
   };
 
   return (
     <section className="panel">
-      <h2>{t.image}</h2>
+      <h2>{t.tabPhoto}</h2>
       <div className="row">
         <input
           ref={fileInput}
@@ -85,13 +88,32 @@ export function ImagePanel() {
           {image ? t.changeImage : t.chooseImage}
         </button>
         <label className="inline">
+          {t.fitMode}:{" "}
+          <select
+            value={fitMode}
+            onChange={(e) => setState({ fitMode: e.target.value as typeof fitMode })}
+          >
+            <option value="contain">{t.fitContain}</option>
+            <option value="cover">{t.fitCover}</option>
+            <option value="stretch">{t.fitStretch}</option>
+          </select>
+        </label>
+        <button
+          className="secondary"
+          onClick={() => setState({ rotation: (rotation + 1) % 4 })}
+          title={`${t.rotate} 90°`}
+        >
+          ⟳ 90°
+        </button>
+        <label className="inline">
           {t.ditherMode}:{" "}
           <select
             value={dither}
-            onChange={(e) => setState({ dither: e.target.value as "floyd" | "threshold" })}
+            onChange={(e) => setState({ dither: e.target.value as typeof dither })}
           >
             <option value="floyd">{t.ditherFloyd}</option>
             <option value="threshold">{t.ditherThreshold}</option>
+            <option value="gray">{t.ditherGray}</option>
           </select>
         </label>
       </div>
@@ -170,7 +192,7 @@ export function ImagePanel() {
               </select>
             </label>
           </div>
-          <PrintControls disabled={printing} onPrint={onPrint} printing={printing} />
+          <PrintControls onPrint={onPrint} />
         </>
       ) : (
         <p className="hint">{t.noImage}</p>
@@ -179,23 +201,16 @@ export function ImagePanel() {
   );
 }
 
-function PrintControls({
-  disabled,
-  onPrint,
-  printing,
-}: {
-  disabled: boolean;
-  onPrint: () => void;
-  printing: boolean;
-}) {
+export function PrintControls({ onPrint }: { onPrint: () => void }) {
   const { t } = useI18n();
+  const printing = useStore((s) => s.printing);
   const progress = useStore((s) => s.progress);
   const flowPaused = useStore((s) => s.flowPaused);
   const error = useStore((s) => s.error);
 
   return (
     <div className="print-controls">
-      <button className="primary" disabled={disabled} onClick={onPrint}>
+      <button className="primary" disabled={printing} onClick={onPrint}>
         {printing ? t.printing : t.print}
       </button>
       {printing && progress && (

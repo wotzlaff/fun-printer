@@ -1,6 +1,7 @@
 import { isBluetoothSupported } from "../transport/bluetooth";
-import { getPrinter } from "../transport/printerInstance";
+import { getPrinter, feedPaper } from "../transport/printerInstance";
 import { setState, useStore } from "../state/store";
+import { loadSettings } from "../state/persist";
 import { useI18n } from "../i18n";
 import type { StatusInfo } from "../protocol/status";
 
@@ -9,6 +10,7 @@ export function ConnectionPanel() {
   const connection = useStore((s) => s.connection);
   const deviceName = useStore((s) => s.deviceName);
   const firmware = useStore((s) => s.firmware);
+  const printing = useStore((s) => s.printing);
 
   const supported = isBluetoothSupported();
   const secure = window.isSecureContext;
@@ -18,6 +20,7 @@ export function ConnectionPanel() {
     try {
       const name = await getPrinter().connect();
       setState({ connection: "connected", deviceName: name });
+      loadSettings(name); // device-specific settings override globals
     } catch (error) {
       setState({
         connection: "disconnected",
@@ -65,6 +68,17 @@ export function ConnectionPanel() {
             </>
           )}
         </dl>
+      )}
+      {connection === "connected" && (
+        <div className="row">
+          <button
+            className="secondary"
+            disabled={printing}
+            onClick={() => void feedPaper()}
+          >
+            {t.feed}
+          </button>
+        </div>
       )}
       {connection === "connected" && <StatusPanel />}
     </section>

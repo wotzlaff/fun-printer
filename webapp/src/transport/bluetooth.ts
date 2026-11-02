@@ -19,7 +19,11 @@ import {
 import {
   deviceInfoQuery,
   deviceIdQuery,
+  labelMeasure,
+  labelNext,
+  labelPositionFound,
   looksLikeErrorNotification,
+  paperFeed,
   scanFrames,
   statusQuery,
 } from "../protocol/frames";
@@ -54,6 +58,8 @@ export interface PrintProgress {
 }
 
 const CHUNK_SIZE = 240; // live-verified MX10 write size
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export class Printer {
   private server: BluetoothRemoteGATTServer | null = null;
@@ -147,6 +153,11 @@ export class Printer {
       switch (f.cmd) {
         case 0xa3: {
           const status = decodeA3(f.payload);
+          // 22-char responses carry a 16-bit value at payload[1..2]: the
+          // label-mark position (0 = mark under the head) or head temperature.
+          if (f.payload.length >= 3) {
+            this.lastA3Position = (f.payload[1] << 8) | f.payload[2];
+          }
           this.events.onStatus?.(status);
           break;
         }
@@ -175,18 +186,67 @@ export class Printer {
     }
   }
 
-  /** Enqueue and send a print job. Resolves when all packets were handed to the radio. */
-  async print(lines: Uint8Array[], options: PrintJobOptions = {}): Promise<void> {
+  /** Enqueue and send a print job (with copies); resolves when all packets were handed to the radio. */
+  async print(
+    lines: Uint8Array[],
+    options: PrintJobOptions & { copies?: number } = {},
+  ): Promise<void> {
     if (!this.connected) throw new Error("not-connected");
     if (this.queue?.isRunning()) throw new Error("print-already-running");
-    const job = encodePrintJob(lines, options);
+    const { copies = 1, ...jobOptions } = options;
+    const job = encodePrintJob(lines, jobOptions);
     const callbacks = {
       onProgress: (sent: number, total: number) =>
         this.events.onProgress?.({ sent, total }),
     };
     this.queue = new FlowWriteQueue((packet) => this.writeRaw(packet), callbacks);
-    this.queue.enqueueAll(job, CHUNK_SIZE);
+    for (let copy = 0; copy < copies; copy++) {
+      if (copy > 0 && jobOptions.feedDots !== 0) {
+        this.queue.enqueueAll(paperFeed(jobOptions.feedDots ?? 0x30), CHUNK_SIZE);
+      }
+      this.queue.enqueueAll(job, CHUNK_SIZE);
+    }
     await this.queue.run();
+  }
+
+  /**
+   * Label print with black-mark positioning (experimental, docs/06):
+   * measure loop (A1 0004 + A3 polling) until the mark reports position 0,
+   * then "position found" and the job. Between copies: next-label feed + re-measure.
+   */
+  async printLabel(
+    lines: Uint8Array[],
+    options: PrintJobOptions & { copies?: number } = {},
+  ): Promise<void> {
+    if (!this.connected) throw new Error("not-connected");
+    if (this.queue?.isRunning()) throw new Error("print-already-running");
+    const { copies = 1, ...jobOptions } = options;
+    for (let copy = 0; copy < copies; copy++) {
+      if (copy > 0) await this.writeRaw(labelNext());
+      await this.writeRaw(labelMeasure());
+      const found = await this.waitForMark(200);
+      if (!found) throw new Error("label-mark-not-found");
+      await this.writeRaw(labelPositionFound());
+      await this.print(lines, { ...jobOptions, copies: 1, feedDots: 0 });
+    }
+  }
+
+  /** Poll A3 until the position payload reports 0 (mark under the head). */
+  private async waitForMark(maxTries: number): Promise<boolean> {
+    for (let i = 0; i < maxTries; i++) {
+      await this.writeRaw(labelMeasure());
+      await this.writeRaw(statusQuery());
+      await sleep(40);
+      if (this.lastA3Position === 0) return true;
+    }
+    return false;
+  }
+
+  private lastA3Position = -1;
+
+  /** Manual paper feed (dots). */
+  async feed(dots = 0x30): Promise<void> {
+    await this.writeRaw(paperFeed(dots));
   }
 
   /** Periodic status polling (A3), ~2 s cadence. */
