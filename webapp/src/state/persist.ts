@@ -12,6 +12,7 @@ export interface PersistedSettings {
   threshold: number;
   quality: number;
   dither: "floyd" | "threshold" | "gray";
+  autoEnhance: boolean;
 }
 
 const GLOBAL_KEY = "fun-printer:settings:global";
@@ -20,7 +21,7 @@ const GLOBAL_KEY = "fun-printer:settings:global";
  * Bump when the shipped defaults change so stale stored values from older
  * versions don't override them (old entries are ignored on load).
  */
-const SETTINGS_VERSION = 2;
+const SETTINGS_VERSION = 3;
 
 const SETTINGS_FIELDS: (keyof PersistedSettings)[] = [
   "density",
@@ -30,6 +31,7 @@ const SETTINGS_FIELDS: (keyof PersistedSettings)[] = [
   "threshold",
   "quality",
   "dither",
+  "autoEnhance",
 ];
 
 function key(deviceName: string | null): string {
@@ -70,6 +72,7 @@ export function saveSettings(deviceName: string | null): void {
         threshold: state.threshold,
         quality: state.quality,
         dither: state.dither,
+        autoEnhance: state.autoEnhance,
       };
       localStorage.setItem(
         key(deviceName),

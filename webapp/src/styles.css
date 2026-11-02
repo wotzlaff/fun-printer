@@ -186,6 +186,12 @@ canvas.preview {
   background: #fff;
 }
 
+canvas.preview.crop-target {
+  cursor: crosshair;
+  touch-action: none;
+  border-color: var(--accent);
+}
+
 label.inline {
   display: inline-flex;
   align-items: center;

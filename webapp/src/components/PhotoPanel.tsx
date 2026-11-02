@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   fitToWidth,
   rotateSource,
@@ -6,6 +6,8 @@ import {
   applyTone,
   ditherToLines,
 } from "../imaging/raster";
+import { autoEnhance as applyEnhance, cropGray, type CropRect } from "../imaging/enhance";
+import type { GrayImage } from "../imaging/raster";
 import { printLines } from "../transport/printerInstance";
 import { setState, useStore } from "../state/store";
 import { useI18n } from "../i18n";
@@ -25,38 +27,77 @@ export function PhotoPanel() {
   const brightness = useStore((s) => s.brightness);
   const threshold = useStore((s) => s.threshold);
   const quality = useStore((s) => s.quality);
+  const autoEnhance = useStore((s) => s.autoEnhance);
   const previewRef = useRef<HTMLCanvasElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const linesRef = useRef<Uint8Array[] | null>(null);
+  const fittedGrayRef = useRef<GrayImage | null>(null);
+  const cropRef = useRef<CropRect | null>(null);
+  const [cropMode, setCropMode] = useState(false);
+  const [dragRect, setDragRect] = useState<CropRect | null>(null);
+  const [cropVersion, setCropVersion] = useState(0);
+  const crop = useStore((s) => s.image) ? cropRef.current : null;
 
-  // Re-dither + re-draw the 1 bpp preview whenever image or settings change.
+  // Pipeline: rotate → fit → crop → auto-enhance → tone → dither.
   useEffect(() => {
     if (!image || !previewRef.current) return;
     const rotated = rotation ? rotateSource(image, rotation) : image;
-    const imageData = fitToWidth(rotated, PRINTER_WIDTH, fitMode);
-    const toned = applyTone(toGray(imageData), { gamma, contrast, brightness });
+    const fitted = fitToWidth(rotated, PRINTER_WIDTH, fitMode);
+    fittedGrayRef.current = toGray(fitted);
+    let gray = fittedGrayRef.current;
+    if (cropRef.current) gray = cropGray(gray, cropRef.current);
+    if (autoEnhance) gray = applyEnhance(gray);
+    const toned = applyTone(gray, { gamma, contrast, brightness });
     const lines = ditherToLines(toned, dither === "gray" ? "threshold" : dither, threshold);
     linesRef.current = lines;
     const canvas = previewRef.current;
-    canvas.width = PRINTER_WIDTH * 2;
+    canvas.width = toned.width * 2;
     canvas.height = toned.height * 2;
     const ctx = canvas.getContext("2d")!;
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (cropMode) {
+      // undithered grayscale view for crop selection
+      const src = cropRef.current ? cropGray(fittedGrayRef.current!, cropRef.current) : fittedGrayRef.current!;
+      const img = ctx.createImageData(src.width, src.height);
+      for (let i = 0; i < src.gray.length; i++) {
+        const v = src.gray[i];
+        img.data[i * 4] = v;
+        img.data[i * 4 + 1] = v;
+        img.data[i * 4 + 2] = v;
+        img.data[i * 4 + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
+      // existing crop rect (fitted-image coords) or current drag rect
+      const rect = dragRect ?? cropRef.current;
+      if (rect) {
+        // if a crop is applied, the view is the crop → draw in view coords
+        const viewRect = cropRef.current && !dragRect
+          ? { x: 0, y: 0, w: src.width, h: src.height }
+          : rect;
+        ctx.strokeStyle = "#4fc3f7";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(viewRect.x * 2, viewRect.y * 2, viewRect.w * 2, viewRect.h * 2);
+      }
+      return;
+    }
     ctx.fillStyle = "#111111";
     for (let y = 0; y < toned.height; y++) {
       const row = lines[y];
-      for (let x = 0; x < PRINTER_WIDTH; x++) {
+      for (let x = 0; x < toned.width; x++) {
         if (row[x >> 3] & (1 << (x & 7))) {
           ctx.fillRect(x * 2, y * 2, 2, 2);
         }
       }
     }
-  }, [image, rotation, fitMode, dither, gamma, contrast, brightness, threshold]);
+  }, [image, rotation, fitMode, dither, gamma, contrast, brightness, threshold, autoEnhance, cropMode, dragRect, cropVersion, crop]);
 
   const pickFile = async (file: File) => {
     const bitmap = await createImageBitmap(file);
+    cropRef.current = null;
     setState({ image: bitmap, imageName: file.name, rotation: 0 });
+    setCropVersion((v) => v + 1);
   };
 
   const onPrint = () => {
@@ -68,6 +109,53 @@ export function PhotoPanel() {
       imageName ?? "photo",
       previewRef.current.toDataURL("image/png"),
     );
+  };
+
+  const resetCrop = () => {
+    cropRef.current = null;
+    setCropVersion((v) => v + 1);
+  };
+
+  // pointer → image coordinates (canvas attribute px = image px × 2)
+  const toImageCoords = (e: React.PointerEvent<HTMLCanvasElement>): { x: number; y: number } => {
+    const canvas = previewRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) * (canvas.width / rect.width)) / 2;
+    const y = ((e.clientY - rect.top) * (canvas.height / rect.height)) / 2;
+    return {
+      x: Math.max(0, Math.min(fittedGrayRef.current!.width - 1, Math.round(x))),
+      y: Math.max(0, Math.min(fittedGrayRef.current!.height - 1, Math.round(y))),
+    };
+  };
+
+  const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!cropMode || !fittedGrayRef.current) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const { x, y } = toImageCoords(e);
+    setDragRect({ x, y, w: 1, h: 1 });
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!cropMode || !dragRect || !fittedGrayRef.current) return;
+    const { x, y } = toImageCoords(e);
+    const startX = dragRect.w >= 0 ? dragRect.x : dragRect.x + dragRect.w;
+    const startY = dragRect.h >= 0 ? dragRect.y : dragRect.y + dragRect.h;
+    setDragRect({
+      x: startX,
+      y: startY,
+      w: Math.max(1, x - startX),
+      h: Math.max(1, y - startY),
+    });
+  };
+
+  const onPointerUp = () => {
+    if (!cropMode || !dragRect) return;
+    if (dragRect.w >= 8 && dragRect.h >= 8) {
+      cropRef.current = dragRect;
+      setCropMode(false);
+      setCropVersion((v) => v + 1);
+    }
+    setDragRect(null);
   };
 
   return (
@@ -116,12 +204,47 @@ export function PhotoPanel() {
             <option value="gray">{t.ditherGray}</option>
           </select>
         </label>
+        <label className="inline">
+          <input
+            type="checkbox"
+            checked={autoEnhance}
+            onChange={(e) => setState({ autoEnhance: e.target.checked })}
+          />
+          {t.autoEnhance}
+        </label>
       </div>
 
       {image ? (
         <>
-          <h3>{t.preview}</h3>
-          <canvas ref={previewRef} className="preview" />
+          <h3>{cropMode ? t.cropSelect : t.preview}</h3>
+          <canvas
+            ref={previewRef}
+            className={`preview${cropMode ? " crop-target" : ""}`}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+          />
+          <div className="row">
+            {cropMode ? (
+              <>
+                <span className="hint">{t.cropHint}</span>
+                <button className="secondary" onClick={() => setCropMode(false)}>
+                  {t.cancel}
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="secondary" onClick={() => setCropMode(true)}>
+                  ✂ {t.cropMode}
+                </button>
+                {cropRef.current && (
+                  <button className="secondary" onClick={resetCrop}>
+                    ✕ {t.cropReset}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
           <div className="sliders">
             <label className="inline">
               {t.density}: <strong>{density}</strong>

@@ -62,6 +62,7 @@ async function runPrint(request: PrintRequest): Promise<void> {
         threshold: state.threshold,
         quality: state.quality,
         dither: state.dither,
+        autoEnhance: state.autoEnhance,
       },
     });
     setState({ printing: false });

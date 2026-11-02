@@ -34,6 +34,7 @@ export interface AppState {
   threshold: number;
   quality: number;
   copies: number;
+  autoEnhance: boolean;
   // text
   textContent: string;
   fontSize: number;
@@ -69,6 +70,7 @@ let state: AppState = {
   threshold: 170,
   quality: 4,
   copies: 1,
+  autoEnhance: true,
   textContent: "",
   fontSize: 24,
   bold: true,
