@@ -213,6 +213,8 @@ export class Printer {
    * Label print with black-mark positioning (experimental, docs/06):
    * measure loop (A1 0004 + A3 polling) until the mark reports position 0,
    * then "position found" and the job. Between copies: next-label feed + re-measure.
+   * Bounded strictly: devices without a mark sensor (e.g. MX10 reports head
+   * temperature in the same field) abort after ~1.5 s WITHOUT printing.
    */
   async printLabel(
     lines: Uint8Array[],
@@ -224,7 +226,7 @@ export class Printer {
     for (let copy = 0; copy < copies; copy++) {
       if (copy > 0) await this.writeRaw(labelNext());
       await this.writeRaw(labelMeasure());
-      const found = await this.waitForMark(200);
+      const found = await this.waitForMark(40);
       if (!found) throw new Error("label-mark-not-found");
       await this.writeRaw(labelPositionFound());
       await this.print(lines, { ...jobOptions, copies: 1, feedDots: 0 });

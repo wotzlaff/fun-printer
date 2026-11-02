@@ -66,6 +66,10 @@ export const de = {
   bold: "Fett",
   labelWidth: "Labelbreite",
   positioning: "Positionierung via schwarzer Marke",
+  positioningHint:
+    "Experimentell: benötigt eine Label-Rolle mit schwarzen Markierungen und einen Sensor im Drucker. Geräte ohne Sensor (z. B. MX10) brechen nach ~2 s ohne Druck ab.",
+  labelMarkNotFound:
+    "Keine schwarze Marke gefunden — Positionierung deaktivieren oder Label-Rolle prüfen.",
   labelTitlePlaceholder: "Titel…",
   labelBodyPlaceholder: "Zusatzzeilen (optional)…",
   labelQrPlaceholder: "QR-Inhalt (URL/Text, optional)…",
@@ -138,6 +142,10 @@ export const en: Strings = {
   bold: "Bold",
   labelWidth: "Label width",
   positioning: "Black-mark positioning",
+  positioningHint:
+    "Experimental: requires label rolls with black marks and a sensor in the printer. Devices without a sensor (e.g. MX10) abort after ~2 s without printing.",
+  labelMarkNotFound:
+    "No black mark found — disable positioning or check the label roll.",
   labelTitlePlaceholder: "Title…",
   labelBodyPlaceholder: "Additional lines (optional)…",
   labelQrPlaceholder: "QR content (URL/text, optional)…",

@@ -33,8 +33,13 @@ workflow also runs the protocol test suite before deploying)
 ### Label tab
 - Label widths 20/25/30/40/50 mm (200 dpi, 0.95 correction factor)
 - Title + body lines + optional QR code
+- **Raster is always full head width (384 dots / 48-byte rows)** — label
+  content is laid out inside its mm-width and padded white beyond. (This was
+  the v0.2 bug: 28-byte rows produced garbage on the printer.)
 - ⚗ **Black-mark positioning** (experimental): measure loop with `A1 0004`/`A3`
-  until the mark reports 0, then print at position; next-label feed between copies
+  until the mark reports 0, then print at position; next-label feed between
+  copies. Bounded to ~1.5 s — devices without a mark sensor (MX10 reports the
+  head temperature in that field) abort **without printing**.
 
 ### History tab
 - Every successful print is stored in IndexedDB (lines + settings + thumbnail)
@@ -94,7 +99,8 @@ Settings → Pages → Build and deployment → **Source: GitHub Actions**.
 ## Known open points
 
 - Black-mark positioning is implemented from the documented flow (docs/06) but
-  not yet verified on the real device — feedback welcome.
+  not yet verified on a mark-sensor device (the MX10 has no such sensor — its
+  A3 field carries the head temperature instead).
 - Grayscale print is an experiment: the original hardcodes a suspicious header
   ("5178A2003000", LEN=48) for gray lines; we send the true LEN (= width bytes).
   Compare both on paper and tell us which your board prefers.

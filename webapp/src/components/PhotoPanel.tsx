@@ -219,7 +219,11 @@ export function PrintControls({ onPrint }: { onPrint: () => void }) {
           {flowPaused && <span className="badge warn">⏸ {t.flowPaused}</span>}
         </span>
       )}
-      {error && <p className="warning">{t.printError}: {error}</p>}
+      {error && (
+        <p className="warning">
+          {t.printError}: {error === "label-mark-not-found" ? t.labelMarkNotFound : error}
+        </p>
+      )}
     </div>
   );
 }

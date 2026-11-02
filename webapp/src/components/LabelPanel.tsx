@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { LABEL_WIDTHS_MM, renderLabel, mmToLabelPx } from "../imaging/labelRender";
+import { LABEL_WIDTHS_MM, renderLabel, HEAD_WIDTH } from "../imaging/labelRender";
 import { toGray, ditherToLines } from "../imaging/raster";
 import { printLines } from "../transport/printerInstance";
 import { setState, useStore } from "../state/store";
@@ -36,7 +36,7 @@ export function LabelPanel() {
         const lines = ditherToLines(gray, "threshold", 170);
         linesRef.current = lines;
         const canvas = previewRef.current;
-        canvas.width = gray.width * 2;
+        canvas.width = gray.width * 2; // = head width ×2
         canvas.height = gray.height * 2;
         const ctx = canvas.getContext("2d")!;
         ctx.fillStyle = "#ffffff";
@@ -61,7 +61,7 @@ export function LabelPanel() {
     if (!linesRef.current || !previewRef.current) return;
     void printLines(
       linesRef.current,
-      mmToLabelPx(labelWidthMm),
+      HEAD_WIDTH,
       linesRef.current.length,
       `label-${labelWidthMm}mm`,
       previewRef.current.toDataURL("image/png"),
@@ -94,6 +94,7 @@ export function LabelPanel() {
           {t.positioning} ⚗
         </label>
       </div>
+      {positioning && <p className="hint">{t.positioningHint}</p>}
       <input
         className="text-field"
         placeholder={t.labelTitlePlaceholder}

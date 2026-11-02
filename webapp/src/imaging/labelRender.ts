@@ -1,6 +1,9 @@
 /**
- * Label rendering: fixed label widths (mm → px at 200 dpi, 0.95 correction
- * factor per docs/02), optional QR code + wrapped title text, white padding.
+ * Label rendering. The print head is always 384 dots (48 mm at 203 dpi) —
+ * the raster MUST be full head width; label content is laid out inside its
+ * mm-derived content width and padded white beyond (a narrower label simply
+ * stays white there). Fixed widths at 200 dpi with the 0.95 correction
+ * factor per docs/02.
  */
 import QRCode from "qrcode";
 
@@ -11,6 +14,9 @@ export const LABEL_WIDTHS_MM = [20, 25, 30, 40, 50] as const;
 export function mmToLabelPx(mm: number): number {
   return Math.floor((mm / 25.4) * 200 * 0.95);
 }
+
+/** The head raster width the printer expects per line (live-verified: 48 B). */
+export const HEAD_WIDTH = 384;
 
 export interface LabelRenderOptions {
   widthMm: number;
@@ -24,18 +30,19 @@ export interface LabelRenderOptions {
 
 export async function renderLabel(options: LabelRenderOptions): Promise<ImageData> {
   const { widthMm, title, qr = "", body = "", bold = true } = options;
-  const widthPx = mmToLabelPx(widthMm);
-  const padding = Math.max(4, Math.round(widthPx * 0.06));
-  const qrSize = qr ? Math.round(widthPx * 0.55) : 0;
+  const headWidth = HEAD_WIDTH;
+  const contentWidth = Math.min(headWidth, mmToLabelPx(widthMm));
+  const padding = Math.max(4, Math.round(contentWidth * 0.06));
+  const qrSize = qr ? Math.round(contentWidth * 0.55) : 0;
 
   // measure text against a measuring canvas
-  const titleSize = Math.round(widthPx * 0.13);
-  const bodySize = Math.round(widthPx * 0.10);
+  const titleSize = Math.round(contentWidth * 0.13);
+  const bodySize = Math.round(contentWidth * 0.10);
   const measure = document.createElement("canvas").getContext("2d")!;
   measure.font = `${bold ? "bold " : ""}${titleSize}px system-ui, sans-serif`;
-  const titleLines = wrap(title, measure, widthPx - padding * 2 - (qr ? qrSize + padding : 0));
+  const titleLines = wrap(title, measure, contentWidth - padding * 2 - (qr ? qrSize + padding : 0));
   measure.font = `${bodySize}px system-ui, sans-serif`;
-  const bodyLines = body ? wrap(body, measure, widthPx - padding * 2 - (qr ? qrSize + padding : 0)) : [];
+  const bodyLines = body ? wrap(body, measure, contentWidth - padding * 2 - (qr ? qrSize + padding : 0)) : [];
 
   const titleH = titleLines.length * titleSize * 1.25;
   const bodyH = bodyLines.length * bodySize * 1.25;
@@ -45,23 +52,23 @@ export async function renderLabel(options: LabelRenderOptions): Promise<ImageDat
   );
 
   const canvas = document.createElement("canvas");
-  canvas.width = widthPx;
+  canvas.width = headWidth; // ALWAYS head width — 48-byte rows
   canvas.height = heightPx;
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, widthPx, heightPx);
+  ctx.fillRect(0, 0, headWidth, heightPx);
   ctx.fillStyle = "#000000";
 
   const textX = padding + (qr ? qrSize + padding : 0);
   let y = padding;
   ctx.font = `${bold ? "bold " : ""}${titleSize}px system-ui, sans-serif`;
   for (const line of titleLines) {
-    ctx.fillText(line, textX, y, widthPx - padding - textX);
+    ctx.fillText(line, textX, y, contentWidth - padding - textX);
     y += titleSize * 1.25;
   }
   ctx.font = `${bodySize}px system-ui, sans-serif`;
   for (const line of bodyLines) {
-    ctx.fillText(line, textX, y, widthPx - padding - textX);
+    ctx.fillText(line, textX, y, contentWidth - padding - textX);
     y += bodySize * 1.25;
   }
 
@@ -72,7 +79,7 @@ export async function renderLabel(options: LabelRenderOptions): Promise<ImageDat
     ctx.drawImage(qrCanvas, padding, Math.round((heightPx - qrSize) / 2), qrSize, qrSize);
   }
 
-  return ctx.getImageData(0, 0, widthPx, heightPx);
+  return ctx.getImageData(0, 0, headWidth, heightPx);
 }
 
 function wrap(text: string, ctx: CanvasRenderingContext2D, maxWidth: number): string[] {
