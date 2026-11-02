@@ -6,21 +6,35 @@ Zuständig: `models/printer/v5g_label.js` (`4ab3`), `android_ble.js` (`dc2f`),
 
 ## Framing
 
-Jedes Kommando ist ein BLE-Paket der Form:
+Jedes Kommando ist ein BLE-Paket der Form (rekonstruiert aus `V5g.java`,
+`V5gCMD.java` und den JS-Frames; CRC-Beispiele rechnerisch verifiziert):
 
 ```
-51 78 <CMD> <LEN_hi> <LEN_lo> <PAYLOAD…> <CRC8> FF
- │    │     │    └──────┘   │          │     └─ Terminator 0xFF
- │    │     │    Länge (BE) │          └─ CRC-8 (Poly 0x07, Init 0)
- │    │     │               └─ Payload-Bytes
+51 78 <CMD> <LEN16 BE> 00 <PAYLOAD (LEN Bytes)> <CRC8> FF
+ │    │     │    └───┬──┘  │   │             │     └─ Terminator 0xFF
+ │    │     │     Länge BE  │   │             └─ CRC-8 über PAYLOAD
+ │    │     │        │      │   │                (Poly 0x07, Init 0)
+ │    │     │        │      │   └─ Payload-Bytes
+ │    │     │        │      └─ festes Trennbyte 0x00
  │    │     └─ Kommando-Byte
  │    └─ Magic „Qx“ (0x51 0x78)
  └─ Startzeichen „Q“
 ```
 
+Beispiele (CRC je rechnerisch geprüft):
+`5178A10002003000F9FF` (A1, LEN 2, Payload `30 00`),
+`5178A30001000000FF` (A3, LEN 1, Payload `00`),
+`5178AF000200E02E89FF` (AF, LEN 2, Payload `E0 2E` = 12000 LE).
+
 CRC-8 wird über den Payload (nicht über Magic/CMD/LEN) gerechnet –
 Umsetzung siehe `ConvertUtils.calcCrc8` und JS-Modul `9673.js`
 (Tabelle = CRC-8/ATM, Poly 0x07, Init 0x00, MSB-first, kein XOR-Out).
+Hinweis: die JS-Funktion `crc8(arr)` aus `9673.js` gibt **Payload+CRC als Hex**
+zurück (hängt das CRC-Byte an) – deshalb taucht im JS-Quelltext z. B. beim
+F2-Frame `crc8(hexStr2Bytes("01"+energy))` als „01 <e> <crc>“ auf.
+
+Geräte→App-Benachrichtigungen (Flow-Control `AE`) nutzen ein abweichendes
+Layout: `51 78 AE 01 01 00 <Param> <CRC8> FF`.
 
 ## Kommandos (aus `V5g.java`, `V5gCMD.java`, JS-Modulen)
 
@@ -29,12 +43,11 @@ Umsetzung siehe `ConvertUtils.calcCrc8` und JS-Modul `9673.js`
 | `A1` | `5178A10002003000F9FF` | Papier-Feed/Papierumleitung: Payload 2 B, `0030` = 48 Dot (200 dpi ≈ 6 mm); 300-dpi-Variante `0048` = 72 Dot. Andere Werte: `0009` (Label-Druck-Sequenz), `0001`/`0010` (Positionierung), `0038` (YT*-Tail) | `V5g.paper`, `4ab3.js` |
 | `A2` | `5178A2 00 30 00 <48 B Zeile> <crc> FF` | **Bildzeile**: `00 30` = Bytes pro Zeile (48 = 384 px/8); Zeilenbytes 1bpp, LSB-first, Bit=1 → schwarz; danach CRC8 über die Zeilenbytes und `FF`. (Gray-Variante: 1 Byte pro Pixel, Grauwert) | `V5g.eachLinePixToCmdB`, `getGrayPrintData` |
 | `A3` | `5178A30001000000FF` | Status-Query. Antwort 18 oder 22 Hex-Zeichen, `a3` an Position 4; Statusbyte an Position 12 (s. u.); 22-Zeichen-Antwort = Label (Positionswert an Position 14) | `e54e.js`, `c543.js` |
-| `A4` | `5178A4000100348CFF` | Buffer-Flush (in Cancel-Sequenz, Param `0x34`) | `dc2f.js` |
-| `A4` | `5178A4000100 31..35 <crc> FF` | **Dichte/Quality 1–5** (Bytes `0x31`–`0x35`) | `V5g.quality1–5` |
+| `A4` | `5178A40001003197FF` … `…35…` | **Dichte/Quality 1–5** (Payload `0x31`–`0x35` = „1“–„5“; in der Cancel-Sequenz steht `0x34` = Stufe 4) | `V5g.quality1–5`, `dc2f.js` |
 | `A6` | `5178A6000B00AA551738445F5F5F44382C A1 FF` | Raster-Startmarker („Lattice“, 11 B Magic `AA 55 17 38 44 5F 5F 5F 44 38 2C`) | `V5g.printLattice` |
-| `A6` | `5178A6000B00AA551B00000000000000 1B 11 FF` | Raster-Endmarker (Magic `AA 55 1B 00…00 1B`, Param `0x11`) | `V5g.finishLattice` |
+| `A6` | `5178A6000B00AA5517000000000000 00 17 11 FF` | Raster-Endmarker (Magic `AA 55 17 00…00 17`, CRC `0x11`) | `V5g.finishLattice` |
 | `AE` | `5178AE0101001070FF` / `5178AE0101000000FF` | Flow-Control an/aus (siehe Dok 03) | Native-Handler |
-| `AF` | `5178AF000200E02E A2 FF` | Verbrennungs-Energie, 16 Bit **little-endian** (12000 = `0x2EE0` → `E0 2E`) | `V5g.getEnerageByte` |
+| `AF` | `5178AF000200E02E89FF` | Verbrennungs-Energie, 16 Bit **little-endian** (12000 = `0x2EE0` → `E0 2E`) | `V5g.getEnerageByte` |
 | `BD` | `5178BD0001000A36FF` | Druckgeschwindigkeit (1 B, z. B. `0x0A`); Bild-Druck GT01: 55, Text: 45 | `V5g.getPrintSpeed`, `PrinterModel.java` |
 | `BE` | `5178BE0001000000FF` (Bild) / `5178BE0001000107FF` (Text) | Druckmodus | `V5g.print_img`/`print_text` |
 | `A8` | `5178A800010000 00 FF` | Geräte-Info | `V5g.getDevInfo` |
@@ -69,14 +82,14 @@ Durchschnitt über 4 Messungen, Standardabweichung < 60 ⇒ gespeichert; Feinpos
 ## Vollständige Bild-Sequenz (V5G-Dot-Druck, `V5g.getPrintData`)
 
 ```
-<A4 Quality 1..5>              z. B. 5178A400010033??FF
+<A4 Quality 1..5>              z. B. 5178A40001003399FF   (Stufe 3)
 <A6 Lattice-Start>             5178A6000B00AA551738445F5F5F44382CA1FF
-[<AF Energie> (nur Label/Gray)] 5178AF000200E02EA2FF
+[<AF Energie> (nur Label/Gray)] 5178AF000200E02E89FF   (12000 LE = E0 2E)
 <BE Modus = Bild>              5178BE0001000000FF
-<A2 Zeile> × height            5178A2003000...<48B><crc>FF
-<BD Speed>                     5178BD00010019??FF (25 bzw. Modell-Default)
+<A2 Zeile> × height            5178A2003000<48 B><crc>FF
+<BD Speed>                     5178BD000100194FFF   (25; GT01-Img-Default 55 = 0x37)
 <A1 Papier-Feed> × paperNum     5178A10002003000F9FF (GT01: 2×)
-<A6 Lattice-Ende>              5178A6000B00AA551B000000000000001B11FF
+<A6 Lattice-Ende>              5178A6000B00AA5517000000000000001711FF
 <A3 Status-Query>              5178A30001000000FF
 ```
 
@@ -95,9 +108,9 @@ MXW010 erhält Präfix `5178D00101000000FF` (bzw. `…010107FF` im Labelmodus).
 
 ```
 5178A30001000000FF   Status
-5178A4000100348CFF   Buffer flush
+5178A4000100348CFF   Quality = Stufe 4 (0x34)
 5178A6000B00AA551738445F5F5F44382CA1FF   Lattice-Start
-5178AF0002001027A2FF   Energie = 0x0010
+5178AF0002001027A2FF   Energie = 10000 (0x2710 LE)
 5178BE0001000000FF   Modus Bild
 5178BD0001000A36FF   Speed 10
 5178A10002003000F9FF   Feed 48

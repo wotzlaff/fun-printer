@@ -75,31 +75,29 @@ CRC_TABLE = crc8_table(0x07)  # Poly 0x07, Init 0, MSB-first
 
 def frame(cmd: int, payload: bytes) -> bytes:
     n = len(payload)
-    body = bytes([0x51, 0x78, cmd, n >> 8 & 0xFF, n & 0xFF]) + payload
-    crc = crc8(payload)          # über Payload
-    return body + bytes([crc]) + b"\xff"
+    head = bytes([0x51, 0x78, cmd, (n >> 8) & 0xFF, n & 0xFF, 0x00])
+    return head + payload + bytes([crc8(payload)]) + b"\xff"
 
-STATUS   = frame(0xA3, bytes([0x00, 0x00, 0x00]))
+STATUS   = frame(0xA3, b"\x00")                                  # 5178A30001000000FF
 LATTICE  = bytes.fromhex("5178A6000B00AA551738445F5F5F44382CA1FF")
-FINISH   = bytes.fromhex("5178A6000B00AA551B000000000000001B11FF")
-MODE_IMG = frame(0xBE, bytes([0x00, 0x00, 0x00]))
-SPEED    = lambda s: frame(0xBD, bytes([s, 0x00]))
-ENERGY   = lambda e: frame(0xAF, e.to_bytes(2, "little"))
-FEED     = frame(0xA1, (0x0030).to_bytes(2, "big"))
-DENSITY  = lambda e: bytes.fromhex("5178F2000200") + bytes(
-             [crc8(bytes([0x01, e]))]) + b"\xff"
+FINISH   = bytes.fromhex("5178A6000B00AA5517000000000000001711FF")
+MODE_IMG = frame(0xBE, b"\x00")                                  # 5178BE0001000000FF
+SPEED    = lambda s: frame(0xBD, bytes([s]))                     # z. B. s=25 → …19 4F FF
+ENERGY   = lambda e: frame(0xAF, e.to_bytes(2, "little"))        # 12000 → …E02E 89 FF
+FEED     = frame(0xA1, bytes([0x30, 0x00]))                      # …3000 F9 FF
+DENSITY  = lambda e: frame(0xF2, bytes([0x01, e]))               # 51 78 F2 0002 00 01 <e> <crc> FF
+QUALITY  = lambda q: frame(0xA4, bytes([0x30 + q]))              # q=1..5 → 0x31..0x35
 
 def line_frame(row_bits_1bpp_lsb_first: bytes) -> bytes:
-    # 51 78 A2 00 <len> 00 <rowbytes> <crc8(rowbytes)> FF
-    head = bytes([0x51, 0x78, 0xA2, 0x00, len(row_bits_1bpp_lsb_first), 0x00])
-    return head + row_bits_1bpp_lsb_first + bytes([crc8(row_bits_1bpp_lsb_first)]) + b"\xff"
+    # 51 78 A2 <LEN16 BE> 00 <rowbytes> <crc8(rowbytes)> FF
+    return frame(0xA2, row_bits_1bpp_lsb_first)
 
-# Hinweis: Die LEN-Feld-Deutung („00 30 00“ bei A2) ist aus Beobachtungen der
-# Encoder abgeleitet; die Byte-Reihenfolge variiert je Kommando – im Zweifel
-# die Frames aus V5g.java nachbilden (analysis/decompiled/V5g.java).
+# Gray-Variante: Payload = 1 Grauwert-Byte je Pixel statt 1bpp-Zeilenbytes.
 ```
 
 > Wichtig: Die Frames oben sind **aus dem Code des Original-Plugins rekonstruiert**
-> (`V5g.java`, `V5gCMD.java`, `ytbBleFastV3Module.java`). Für die erste Live-Verbindung
-> empfiehlt es sich, mit einem BLE-Sniffer (z. B. nRF Connect: Write-Stream der
-> Original-App mitschneiden) die Reihenfolge am eigenen Gerät zu verifizieren.
+> (`V5g.java`, `V5gCMD.java`, `ytbBleFastV3Module.java`); alle CRC-Beispiele wurden
+> rechnerisch gegen die im Code/JS beobachteten Frames verifiziert (siehe Dok 04).
+> Für die erste Live-Verbindung empfiehlt es sich dennoch, mit einem BLE-Sniffer
+> (z. B. nRF Connect: Write-Stream der Original-App mitschneiden) die Reihenfolge
+> am eigenen Gerät zu verifizieren.

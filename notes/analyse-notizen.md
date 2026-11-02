@@ -43,12 +43,14 @@ gestartet werden.
 
 ## Beobachtete Grenzen (offene Punkte)
 
-- **Statisch, kein Laufzeit-Trace**: Alle Frames aus Code abgeleitet; ein
-  BLE-Sniffer-Mitmjogging am realen Gerät (nRF Connect / HCI-Log) ist der
-  nächste Verifikationsschritt, insbesondere:
-  - exakte LEN-Feld-Deutung im 5178-Frame (A2-Zeilenframe „00 30 00“),
-  - die CRC-Range je Kommando (Payload vs. Header inklusive),
-  - A3-Antwortlayout (Positionen 4/10/12/14) am eigenen Gerät.
+- **Statisch, kein Laufzeit-Trace**: Alle Frames aus Code abgeleitet. Die
+  CRC-8-Annahmen (Poly 0x07 über Payload) wurden rechnerisch gegen beobachtete
+  Frames verifiziert (paper F9, quality 97/99, speed 36, energy A2, lattice A1,
+  finish 11, AE 00/70, V5X E0/90) – ein BLE-Sniffer-Trace am realen Gerät
+  (nRF Connect / HCI-Log) bleibt der finale Verifikationsschritt, insbesondere:
+  - A3-Antwortlayout (Positionen 4/10/12/14) am eigenen Gerät,
+  - GT01-Konstante `paperSize/printSize = 384` (jadx-Konstante geprüft: 
+    `BitmapCounterConfig.DEFAULT_MAX_BITMAP_COUNT = 384`).
 - **Eigenes Druckermodell unbekannt**: Die Zuordnung hängt vom BT-Namen ab
   (Dok 02). Der MXW-Build deutet auf MXW009/MXW010-Board hin; Name prüfen!
 - **V8S/V8SPRO (Vson) und P7 (Weiturui)** drucken über geschlossene
