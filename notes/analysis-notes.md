@@ -42,22 +42,23 @@ the variable at startup – after setting it, the MCP client must be restarted.
 
 ## Observed limitations (open points)
 
-- **Static, no runtime trace**: all frames derived from code. The CRC-8
-  assumptions (poly 0x07 over payload) were verified computationally against
-  observed frames (paper F9, quality 97/99, speed 36, energy A2, lattice A1,
-  finish 11, AE 00/70, V5X E0/90) – a BLE sniffer trace on the real device
-  (nRF Connect / HCI log) remains the final verification step, especially:
-  - A3 response layout (positions 4/10/12/14) on your own device,
-  - GT01 constants `paperSize/printSize = 384` (jadx constant verified:
-    `BitmapCounterConfig.DEFAULT_MAX_BITMAP_COUNT = 384`).
-- **Own printer identified**: the device announces itself as **MX10** → model class
-  **V5G** (module `3429` `ble_name_config`), 5178 BLE protocol, print width 384 px at
-  203 dpi (see Doc 02 section "The device in this project: MX10").
-- **MX10 board-name puzzle**: the JS would remap the board name to "GT10"
-  (`replace("MX","GT")`), which has no entry in native `PrinterModel.java` (NPE if
-  that path were taken). Either MX10 prints through a different entry point, or the
-  server-driven device config overrides the static mapping. Flagged as inference in
-  Doc 02; a BLE sniff of the original app printing one image resolves it.
+- **✅ Live verification DONE (2026-11-02)**: HCI snoop capture of the original app
+  printing a 384×307 px photo to the MX10 – all 339 TX frames decode with
+  `CRC-OK` (see Doc 04 "Live verification" and `notes/ble-sniff-guide.md`).
+  Wire-confirmed corrections: MTU 517, 240-B write chunks at ≈1.2 ms pacing,
+  density F2 200→130 (head at 55 °C), quality 0x34, energy 15000, speed 10
+  (sent twice), single 48-dot feed, A3 responses carry the head temperature.
+- **Open after the capture**:
+  - `D3` command/response semantics (polled alongside A3; 1-byte response that
+    grows during printing – feed position? progress?) – unresolved,
+  - meaning of the `0x80` bit in A3 response byte 0 (seen at 48 °C and 55 °C) –
+    unresolved (buffer state? job flag?),
+  - the JS-side "GT10" board-name puzzle (Doc 02) is moot at wire level – the
+    device speaks plain 5178 regardless – but the JS/Native path divergence
+    remains unexplained (harmless for a re-implementation).
+- **GT01 constants** `paperSize/printSize = 384` verified via the jadx constant
+  (`BitmapCounterConfig.DEFAULT_MAX_BITMAP_COUNT = 384`) and confirmed live by
+  the 48-byte line frames (384/8).
 - **V8S/V8SPRO (Vson) and P7 (Weiturui)** print via closed plugin encoders
   (no hex format visible in JS); DEX classes exist (`Vsonprinter` module), but
   for these two families the raster path is not fully unraveled.

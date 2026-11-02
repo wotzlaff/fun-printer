@@ -71,12 +71,14 @@ def bitmap_to_lines(pixels, width, height):
         lines.append(bytes(row))
     return lines
 
-def encode_print_data(pixels, width, height, speed_val=55, quality_lvl=3,
-                      density_val=120, energy_val=12000, paper_feeds=2, dpi=200):
+def encode_print_data(pixels, width, height, speed_val=10, quality_lvl=4,
+                      density_val=200, energy_val=15000, paper_feeds=1, dpi=200):
     """Complete sequence per V5g.getPrintData + JS wrap (0a9f.js).
 
-    density_val: density byte 1–200 (F2 frame, "Nongdu")
-    energy_val:  16-bit burn energy (AF frame), GT01 default 12000
+    Defaults follow the **live MX10 capture (2026-11-02)**, see
+    docs/04-protocol-5178.md "Live verification":
+    density 200 (F2), quality level 4, energy 15000, speed 10, one 48-dot feed.
+    GT01 static defaults would be: speed 55, quality 3, energy 12000, 2 feeds.
     """
     out = bytearray()
     out += density(density_val)       # JS: 5178F2 … before the sequence
@@ -121,6 +123,8 @@ def selftest():
     ok = lambda name, got, exp: print(f"{name:26s} {got:#04x} {'OK' if got == exp else 'FAIL exp ' + hex(exp)}")
     ok("crc8([0x30,0x00])", crc8(bytes([0x30, 0x00])), 0xF9)   # paper
     ok("crc8([0x31])", crc8(b"\x31"), 0x97)                    # quality1
+    ok("crc8([0x34])", crc8(b"\x34"), 0x8C)                    # quality4 (live MX10)
+    ok("crc8([0x01,0xC8])", crc8(bytes([0x01, 0xC8])), 0x63)   # density 200 (live MX10)
     ok("crc8([0x0A])", crc8(b"\x0A"), 0x36)                    # speed 10
     ok("crc8([0xE0,0x2E])", crc8(bytes([0xE0, 0x2E])), 0x89)   # energy 12000 LE
     ok("crc8([0x10,0x27])", crc8(bytes([0x10, 0x27])), 0xA2)   # energy 10000 LE

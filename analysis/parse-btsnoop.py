@@ -57,7 +57,8 @@ def h4_records(records):
         if not data:
             continue
         ptype = data[0]
-        direction = "TX" if (flags & 1) else "RX"  # flags bit0: 1=sent, 0=received
+        # RFC 1761 flags bit0: 0 = sent by host (app → device), 1 = received by host
+        direction = "RX" if (flags & 1) else "TX"
         if ptype == 0x02 and len(data) >= 9:  # ACL
             hf, dlen = struct.unpack("<HH", data[1:5])
             acl_handle = hf & 0x0FFF

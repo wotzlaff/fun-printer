@@ -86,6 +86,13 @@ Plugin: `ytbBleFastV3Module` (FastBLE library `com.clj.fastble`), source class i
 
 (Source: `ytbBleFastV3Module.java` lines ~447–464, `ytbBleFastModule.java` ~503–511.)
 
+**Live-verified (MX10 capture, 2026-11-02):** negotiated MTU is **517** (FastBLE
+requests 517, not the 503 seen in the native `setMtu` call). Write chunking uses
+**240-byte ATT payloads** (the plugin's `perPackageLength` default – not the 123/83 B
+from `PrinterModel.java`), written back-to-back (≈1.2 ms average gap, no fixed
+30 ms interval). GATT attribute handles observed: write 0x0006, notify 0x0008
+(handles vary per device – discover via the service UUIDs above).
+
 ### JS API of the plugin (Android path)
 
 - `Ytbbluetooth.init()` / `uniInit()` – initialize the BT stack

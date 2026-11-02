@@ -8,6 +8,9 @@ work/
 analysis/vendor-bundles/
 analysis/modules/
 
+# BLE captures contain private traffic of all paired devices — never commit
+notes/captures/
+
 # OS/editor
 .DS_Store
 Thumbs.db

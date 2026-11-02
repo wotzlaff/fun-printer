@@ -103,7 +103,10 @@ the board name for MX10 as `"MX10".replace("MX","GT")` = `"GT10"` – but the na
 `PrinterModel.java` only knows GT01/GT02/MX02/MX03, so `V5g("GT10")` would throw an
 NPE. Since MX10 evidently works with the original app, either the label/photo print
 path for MX10 does not run through `V5g.getPrintData` with that name, or the
-server-driven `get_support_ble` config overrides the static mapping. This does not
-affect an alternative implementation: the wire protocol (Doc 04) is device-side and
-name-independent. Practical starting point: **GT01-like parameters** (384 px, 200 dpi,
-energy 12000, speed 55, 2× paper feed of 48 dots), then verify with a BLE sniff.
+server-driven `get_support_ble` config overrides the static mapping.
+
+**✅ Wire-verified regardless (2026-11-02):** a btsnoop capture of the original app
+printing to the MX10 confirms the wire protocol of Doc 04 end-to-end (all CRCs OK),
+with corrected device parameters: energy 15000, density via `F2` (200, temperature-
+reduced to 130), quality `0x34`, speed 10, single 48-dot feed, 240-B writes at MTU 517.
+See the "Live verification" section in [Doc 04](04-protocol-5178.md).

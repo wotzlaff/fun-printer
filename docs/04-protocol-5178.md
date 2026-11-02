@@ -8,6 +8,48 @@ Responsible: `models/printer/v5g_label.js` (`4ab3`), `android_ble.js` (`dc2f`),
 384 px print width at 203 dpi. See [Doc 02](02-devices-and-models.md) for the
 device-specific facts and recommended starting parameters.
 
+## ✅ Live verification (btsnoop capture, MX10, 2026-11-02)
+
+A HCI-snoop capture of the original app printing a 384×307 px photo **confirms
+the framing and every CRC** (339 TX frames, all `CRC-OK`). Observed values that
+differ from the static defaults:
+
+| Aspect | Static default (code) | **Observed live (MX10)** |
+|---|---|---|
+| Negociated MTU | 503 (native request) | **517** (FastBLE default request) |
+| Connection init | status query | `A8` (info) → `BB` (id, payload `01`) → `A3`/`D3` polling; firmware response **"1.0.11"** |
+| Density (`F2`) | 120 | **200** (1st job), **130** (2nd job, head at 55 °C → temperature reduction) |
+| Quality (`A4`) | level 3 (`0x33`) | **level 4 (`0x34`)** |
+| Energy (`AF`) | 12000 | **15000** (`0x3A98` LE) |
+| Speed (`BD`) | 55 (GT01 img) | **10 (`0x0A`), sent twice per job** |
+| Paper feed (`A1`) | 2× (paperNum) | **1× `0x0030`** per job |
+| Line frames (`A2`) | 56 B each | 56 B each ✓, 307 lines, 4 line frames per BLE packet |
+| Write chunking | 123/83 B (GT01 MTUs) | **240 B ATT payloads** (plugin `perPackageLength` default), pacing ≈1.2 ms (no fixed 30 ms interval) |
+| Flow control | pause + resume | only `AE` payload `00` (release) observed after jobs; no pause in short capture |
+| A3 response | 18/22 hex chars | 22 hex chars = LEN 3, payload `00 00 <temp>`: byte0 = status (00 normal, 0x80 flag seen), byte2 = **print head temperature in °C** (47/48/55 observed) |
+| `D3` (new) | unknown | polled (`payload 00`), response LEN=1 (`0x15`, `0x19`, `0x1A`) – value grows during printing; likely feed/position or progress counter, **unresolved** |
+
+Observed per-job sequence (both jobs identical except density):
+
+```
+F2 <01 XX>            density (200 → 130 when hot)
+A3 <00>               status
+A4 <34>               quality level 4
+A6 <AA551738445F5F5F44382C>   lattice start
+AF <98 3A>            energy 15000 LE
+BE <00>               mode image
+BD <0A>               speed 10
+BD <0A>               speed 10 (second time)
+A2 <48 B> × height    line frames (56 B each)
+A1 <30 00>            paper feed 48 dots (once)
+A6 <AA55170000000000000017>   lattice end
+A3 <00>               status
+A3 <00>               status
+```
+
+Wire-level truth beats the static defaults: an alternative implementation should
+start from these observed values.
+
 ## Framing
 
 Every command is a BLE packet of the form (reconstructed from `V5g.java`,
