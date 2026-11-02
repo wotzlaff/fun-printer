@@ -56,7 +56,7 @@ Layout: `51 78 AE 01 01 00 <Param> <CRC8> FF`.
 | `D0` | `5178D00101000000FF` / `…010107FF` | MXW010: Papierart (normal/Label) | `4ab3.js` |
 | `D1` | `5178D10101000000FF` | MXW010: Label-Ende | `4ab3.js` |
 | `D2` | `5178D20101000000FF` | MXW010: Lernen (Label-Material) | `4ab3.js` |
-| `F2` | `5178F2000200 <crc8(01 <energy>)> FF` | **Dichte setzen** (neuere Firmware): Payload = `01` + Energie-Byte (0–200), CRC8 über beide Bytes | `0a9f.js`, `e289.js` |
+| `F2` | `5178F200020001787AFF` | **Dichte setzen** (neuere Firmware, „Nongdu“): Payload = `01` + Dichte-Byte (1–200), CRC8 über beide Bytes (Beispiel: 120 = `0x78`, CRC `0x7A`) | `0a9f.js`, `e289.js` |
 | `F5` | `5178F50001000107FF` | BQ02/BQ03/BQ17: Label-Print-Start | `0a9f.js` |
 | `B9` | `5178B901010000FF` | MXW009: Label-Print-Empfangsbestätigung | `e54e.js` |
 
