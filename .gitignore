@@ -1,0 +1,12 @@
+# Original-Archiv (206 MB) und Rohextraktion nicht im Repo
+external/
+extracted/
+work/
+*.log
+
+# Analyse-Artefakte mit Sensibilität/Lizenzbedenken nicht einchecken
+analysis/vendor-bundles/
+
+# OS/Editor
+.DS_Store
+Thumbs.db
