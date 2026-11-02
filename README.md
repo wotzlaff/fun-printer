@@ -36,5 +36,6 @@ jadx --no-res --no-debug-info -d /tmp/jadx-out extracted/com.fun.mxw.apk
 - [x] Bluetooth-Transporte (SPP, BLE-UUIDs, Chunking, Flow-Control) dokumentiert
 - [x] Druck-Protokolle (5178, ESC-y, 2221, 55AA, 5688, V5M) rekonstruiert
 - [x] Bild-Pipeline (OpenCV, Dithering, Encoder) dokumentiert
+- [x] Referenz-Encoder (`analysis/reference-encoder.py`) mit CRC-Selbsttest
 - [ ] Live-Verifikation am Gerät (BLE-Sniff) – offen
 - [ ] Alternative Oberfläche – geplant (Basis: Dok 09)
