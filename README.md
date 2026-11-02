@@ -1,41 +1,41 @@
 # fun-printer
 
-Reverse-Engineering & Dokumentation der Druckfunktion der Android-App
-**Fun Print 8.10.13** (`com.fun.mxw`) für kleine chinesische Bluetooth-
-Thermoprinter – als Basis für eine **alternative Oberfläche**.
+Reverse engineering & documentation of the printing functionality of the Android app
+**Fun Print 8.10.13** (`com.fun.mxw`) for small Chinese Bluetooth thermal printers –
+as the basis for an **alternative UI**.
 
-→ **Start hier: [`docs/README.md`](docs/README.md)** (Schnellübersicht + Index)
+→ **Start here: [`docs/README.md`](docs/README.md)** (quick summary + index)
 
-## Struktur
+## Structure
 
 ```
-docs/       Technische Dokumentation (Protokolle, Transport, Bildpipeline, …)
-analysis/   Beweisstücke: dekompilierte Java-Klassen + formatierte JS-Module
-notes/      Arbeitsnotizen: Methodik, Grenzen, offene Punkte
-external/   Original-XAPK (nicht im Git)
-extracted/  Entpacktes XAPK (nicht im Git)
+docs/       Technical documentation (protocols, transports, image pipeline, …)
+analysis/   Evidence: decompiled Java classes + formatted JS modules
+notes/      Working notes: methodology, limitations, open points
+external/   Original XAPK (not in Git)
+extracted/  Unpacked XAPK (not in Git)
 ```
 
-## Reproduktion
+## Reproduction
 
 ```bash
-# 1. XAPK entpacken
+# 1. Unpack the XAPK
 unzip external/com.fun.mxw-8.10.13.xapk -d extracted/
 
-# 2. uni-app-Bundle in Module zerlegen
-node analysis/extract-modules.js          # → analysis/modules/ (1303 Dateien)
+# 2. Split the uni-app bundle into modules
+node analysis/extract-modules.js          # → analysis/modules/ (1303 files)
 
-# 3. DEX dekompilieren (jadx ≥ 1.5)
+# 3. Decompile the DEX (jadx ≥ 1.5)
 jadx --no-res --no-debug-info -d /tmp/jadx-out extracted/com.fun.mxw.apk
 ```
 
 ## Status
 
-- [x] XAPK entpackt, Integrität geprüft (12 korrupte Bild-Assets, unkritisch)
-- [x] App-Architektur (uni-app + Native-Plugins) identifiziert
-- [x] Bluetooth-Transporte (SPP, BLE-UUIDs, Chunking, Flow-Control) dokumentiert
-- [x] Druck-Protokolle (5178, ESC-y, 2221, 55AA, 5688, V5M) rekonstruiert
-- [x] Bild-Pipeline (OpenCV, Dithering, Encoder) dokumentiert
-- [x] Referenz-Encoder (`analysis/reference-encoder.py`) mit CRC-Selbsttest
-- [ ] Live-Verifikation am Gerät (BLE-Sniff) – offen
-- [ ] Alternative Oberfläche – geplant (Basis: Dok 09)
+- [x] XAPK unpacked, integrity verified (12 corrupt image assets, non-critical)
+- [x] App architecture (uni-app + native plugins) identified
+- [x] Bluetooth transports (SPP, BLE UUIDs, chunking, flow control) documented
+- [x] Print protocols (5178, ESC-y, 2221, 55AA, 5688, V5M) reconstructed
+- [x] Image pipeline (OpenCV, dithering, encoders) documented
+- [x] Reference encoder (`analysis/reference-encoder.py`) with CRC self-test
+- [ ] Live verification on the device (BLE sniff) – open
+- [ ] Alternative UI – planned (basis: Doc 09)

@@ -1,15 +1,16 @@
-# Original-Archiv (206 MB) und Rohextraktion nicht im Repo
+# Original archive (206 MB) and raw extraction are not tracked
 external/
 extracted/
 work/
 *.log
 
-# Analyse-Artefakte mit Sensibilität/Lizenzbedenken nicht einchecken
+# Analysis artifacts with sensitivity/licensing concerns are not checked in
 analysis/vendor-bundles/
+analysis/modules/
 
-# OS/Editor
+# OS/editor
 .DS_Store
 Thumbs.db
 
-# Node-Tooling
+# Node tooling
 node_modules/

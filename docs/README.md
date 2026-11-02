@@ -1,55 +1,53 @@
-# Fun Print (com.fun.mxw) – Technische Analyse der Druckfunktion
+# Fun Print (com.fun.mxw) – Technical Analysis of the Printing Function
 
-Reverse-Engineering der Android-App **Fun Print 8.10.13** (`com.fun.mxw-8.10.13.xapk`)
-für kleine chinesische Bluetooth-Thermoprinter. Ziel: alle technischen Details der
-Druckfunktion (Bluetooth-Transport, Protokolle, Bildkonvertierung) so dokumentieren,
-dass eine **alternative Oberfläche** (eigene App) entwickelt werden kann.
+Reverse engineering of the Android app **Fun Print 8.10.13** (`com.fun.mxw-8.10.13.xapk`)
+for small Chinese Bluetooth thermal printers. Goal: document all technical details of
+the printing function (Bluetooth transports, protocols, image conversion) well enough
+to build an **alternative UI** (own app).
 
-## Schnellübersicht (TL;DR)
+## Quick summary (TL;DR)
 
-| Thema | Kurzfassung |
+| Topic | Summary |
 |---|---|
-| App-Typ | uni-app (DCloud/HBuilderX) + Weex-Runtime; App-Logik in `app-service.js` (30 MB Webpack-Bundle) |
-| Hersteller/Cloud | YinTiBao (yintb.com) – eine Codebasis für mehrere White-Labels (Fun Print, 印题宝, iBleem, 喵学王, FriendAI) |
-| Drucker-Familien | Minidrucker (BLE, proprietäres `51 78`-Protokoll), Fotodrucker (Bluetooth Classic SPP, ESC/POS-artig), Labeldrucker (`22 21`-Protokoll), A4-Drucker (native Plugins), WiFi-Drucker (TCP 8081) |
-| BLE-Transport | Service `0000FF00-…` (Write `FF02` ohne Response, Notify `FF01`/`FF03`), alternativ `0000AE30-…` und `0000200A-…`; MTU-Anforderung 82/503 |
-| SPP-Transport | UUID `00001101-0000-1000-8000-00805F9B34FB`, `createInsecureRfcommSocketToServiceRecord` (Android, via `plus.android`-Bridge aus JS) |
-| Druckdaten | 1bpp-Raster (schwarz=1). Pro Familie: `51 78`-Zeilenframes (Minidrucker), `ESC * 0x21` 24-Dot-Bänder (V5/V7), `GS v 0` (V7S), `1D 82`-Raster (V8/V10), `22 21`-Frames (V5X-Label) |
-| CRC | CRC-8, Polynom 0x07, Init 0x00 („CRC-8/ATM“), über den Payload, vor `0xFF`-Terminator |
-| Flow-Control | Drucker sendet Pause/Resume-Notify (`…AE01010010 70 FF` = Stopp, `…AE01010000 00 FF` = weiter); Native-Seite pausiert die Write-Queue |
-| Bild-Pipeline | OpenCV: skalieren/rotieren → Dithering (Floyd/Sierra) für Fotos bzw. adaptive Schwelle für Text → Encoder pro Modell → Hex-String → gechunkter BLE/SPP-Write |
+| App type | uni-app (DCloud/HBuilderX) + Weex runtime; app logic in `app-service.js` (30 MB webpack bundle) |
+| Vendor/cloud | YinTiBao (yintb.com) – one code base for several white labels (Fun Print, 印题宝, iBleem, 喵学王, FriendAI) |
+| Printer families | Mini printers (BLE, proprietary `51 78` protocol), photo printers (Bluetooth Classic SPP, ESC/POS-like), label printers (`22 21` protocol), A4 printers (native plugins), WiFi printers (TCP 8081) |
+| BLE transport | Service `0000FF00-…` (write `FF02` without response, notify `FF01`/`FF03`), alternatively `0000AE30-…` and `0000200A-…`; MTU requests of 82/503 |
+| SPP transport | UUID `00001101-0000-1000-8000-00805F9B34FB`, `createInsecureRfcommSocketToServiceRecord` (Android, via the `plus.android` bridge from JS) |
+| Print data | 1 bpp raster (black=1). Per family: `51 78` line frames (mini printers), `ESC * 0x21` 24-dot bands (V5/V7), `GS v 0` (V7S), `1D 82` raster (V8/V10), `22 21` frames (V5X label) |
+| CRC | CRC-8, polynomial 0x07, init 0x00 ("CRC-8/ATM"), computed over the payload, before the `0xFF` terminator |
+| Flow control | Printer sends pause/resume notifications (`…AE01010010 70 FF` = stop, `…AE01010000 00 FF` = continue); the native side pauses the write queue |
+| Image pipeline | OpenCV: scale/rotate → dithering (Floyd/Sierra) for photos or adaptive threshold for text → per-model encoder → hex string → chunked BLE/SPP write |
 
-## Dokumentation
+## Documentation
 
-1. [App-Überblick & Architektur](01-app-ueberblick.md)
-2. [Geräte- und Modellmatrix](02-geraete-und-modelle.md)
-3. [Bluetooth-Transport (SPP + BLE)](03-transport-bluetooth.md)
-4. [Protokoll „51 78“ – BLE-Minidrucker](04-protokoll-5178.md)
-5. [Protokolle „ESC/POS-artig“ – SPP-Fotodrucker](05-protokoll-escpos-spp.md)
-6. [Protokolle Label & Sonstige (22 21 / 55 AA / 56 88)](06-protokoll-label-sonstige.md)
-7. [Bildverarbeitung & Encoder](07-bildverarbeitung.md)
-8. [End-to-End-Druckablauf](08-druckablauf.md)
-9. [UI-Beobachtungen der Original-App (Basis fürs Redesign)](09-ui-beobachtungen.md)
+1. [App overview & architecture](01-app-overview.md)
+2. [Device & model matrix](02-devices-and-models.md)
+3. [Bluetooth transports (SPP + BLE)](03-bluetooth-transport.md)
+4. [Protocol "51 78" – BLE mini printers](04-protocol-5178.md)
+5. ["ESC/POS-like" protocols – SPP photo printers](05-protocol-escpos-spp.md)
+6. [Label & misc protocols (22 21 / 55 AA / 56 88)](06-protocol-label-misc.md)
+7. [Image processing & encoders](07-image-processing.md)
+8. [End-to-end print workflow](08-print-workflow.md)
+9. [UI observations of the original app (basis for the redesign)](09-ui-observations.md)
 
-## Beweisstücke
+## Evidence
 
-- `analysis/decompiled/` – die entscheidenden, mit jadx dekompilierten Java-Klassen
-  (u. a. `V5g.java` = kompletter 5178-Encoder, `OpencvUtilsWXModule.java` = Bildpipeline,
-  `ytbBleFastV3Module.java` = BLE-Stack, `FlowWrite.java` = Chunking/Flow-Control)
-- `analysis/*.js` – die relevanten, formatierten Webpack-Module aus `app-service.js`
-  (Dateinamen = Webpack-Modul-ID; Originalpfade stehen in den `at …`-Logstrings,
-  z. B. `0774.js` = `models/printer/android.js`)
-- `analysis/page-paths.json` – alle 154 Seiten der Original-App
-- `analysis/extract-modules.js` – Skript zum Zerlegen des Bundles
+- `analysis/decompiled/` – the key jadx-decompiled Java classes
+  (incl. `V5g.java` = complete 5178 encoder, `OpencvUtilsWXModule.java` = image
+  pipeline, `ytbBleFastV3Module.java` = BLE stack, `FlowWrite.java` = chunking/flow control)
+- `analysis/*.js` – the relevant formatted webpack modules from `app-service.js`
+  (file names = webpack module IDs; original paths are visible in the `at …` log
+  strings, e.g. `0774.js` = `models/printer/android.js`)
+- `analysis/page-paths.json` – all 154 pages of the original app
+- `analysis/extract-modules.js` – script for splitting the bundle
 
-> ⚠️ Die dekompilierten Quellen sind urheberrechtlich geschütztes Material des
-> App-Herstellers und nur für private Interoperabilitätsanalyse vorgesehen.
-> Sie dienen als Nachweis (Evidence) und dürfen nicht in einem abgeleiteten
-> Produkt weiterverwendet werden.
+> ⚠️ The decompiled sources are copyrighted material of the app vendor and are
+> intended only for private interoperability analysis. They serve as evidence
+> and must not be reused in a derived product.
 
-## Offene Punkte / Grenzen
+## Open points / limitations
 
-Siehe [notes/analyse-notizen.md](../notes/analyse-notizen.md): Statisch analysiert;
-kein Laufzeit-Mittmessen am echten Gerät. Die Zuordnung „welcher Drucker genau“
-hängt vom Bluetooth-Namen des eigenen Geräts ab (Identifikationshilfe in
-[Dok 02](02-geraete-und-modelle.md)).
+See [notes/analysis-notes.md](../notes/analysis-notes.md): statically analyzed;
+no runtime measurement on the real device. Which printer is "yours" depends on its
+Bluetooth name (identification guide in [Doc 02](02-devices-and-models.md)).
