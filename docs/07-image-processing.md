@@ -67,6 +67,18 @@ Depending on the model, protocol headers/tails are added (details in Doc 04–06
 - **X5**: `1B 37 09 00 CC` prefix (Android) / `1B 40 12 23 0F 1B 33 00` (iOS)
 - **V5X**: start header (Doc 06) + image body from offset 20 (hex chars)
 
+## Print darkness (practical note, partially observed)
+
+- The JS wrapper passed **`binaryValue: 170`** to the native encoder (threshold
+  170, not 128!) – anything below 170 becomes black, so prints come out darker.
+  A naive 128 threshold prints visibly lighter on thermal paper.
+- The native side has a **gamma handling path** (`is_use_gamma_handle`,
+  `gammaHandle` flag, `gamma(Mat, float)`) – the original app darkened midtones
+  before dithering on capable boards.
+- The web app therefore applies **gamma 2.0 by default** (user-adjustable 1–3,
+  plus contrast/brightness sliders) before Floyd–Steinberg, and uses threshold
+  170 in threshold mode.
+
 ## Density/energy control per device (JS, `0a9f.js`)
 
 Quality levels "05" (light), "0A" (medium), "0D" (dark), "0F" (custom):

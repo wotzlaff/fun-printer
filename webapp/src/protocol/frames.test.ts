@@ -13,6 +13,7 @@ import {
   statusQuery,
 } from "./frames";
 import { encodePrintJob } from "./printJob";
+import { applyTone, ditherToLines, type GrayImage } from "../imaging/raster";
 
 const hex = (u8: Uint8Array) =>
   Array.from(u8, (b) => b.toString(16).padStart(2, "0")).join("");
@@ -112,3 +113,52 @@ describe("encodePrintJob (live-verified sequence)", () => {
     expect(job.length).toBeGreaterThan(frames.length * 8);
   });
 });
+
+describe("tone + rasterization (thermal darkness)", () => {
+  const flatImage: GrayImage = {
+    width: 8,
+    height: 1,
+    gray: Uint8Array.from([0, 64, 128, 170, 192, 224, 240, 255]),
+  };
+
+  it("gamma darkens midtones (thermal paper prints light without it)", () => {
+    const toned = applyTone(flatImage, { gamma: 2 });
+    expect(toned.gray[2]).toBe(64); // 128 → 255·0.5² = 63.75 → 64
+    expect(toned.gray[3]).toBeLessThan(150); // 170 → 255·(2/3)² ≈ 113
+    expect(toned.gray[0]).toBe(0);
+    expect(toned.gray[7]).toBe(255);
+  });
+
+  it("identity tone returns the image untouched", () => {
+    expect(applyTone(flatImage, {})).toBe(flatImage);
+  });
+
+  it("threshold mode uses the original app's 170 default (more black)", () => {
+    const lines = ditherToLines(flatImage, "threshold", 170);
+    // pixels < 170 are black: 0, 64, 128, 170? (170 is NOT < 170) → 3 black
+    const row = lines[0];
+    let black = 0;
+    for (const byte of row) black += popcount(byte);
+    expect(black).toBe(3);
+  });
+
+  it("floyd mode with high threshold darkens more than low", () => {
+    const dark = ditherToLines(applyTone(flatImage, { gamma: 3 }), "floyd", 128);
+    const light = ditherToLines(flatImage, "floyd", 128);
+    const black = (lines: Uint8Array[]) =>
+      lines.reduce(
+        (n, row) => n + [...row].reduce((m, b) => m + popcount(b), 0),
+        0,
+      );
+    expect(black(dark)).toBeGreaterThan(black(light));
+  });
+});
+
+function popcount(b: number): number {
+  let n = 0;
+  while (b) {
+    n += b & 1;
+    b >>= 1;
+  }
+  return n;
+}

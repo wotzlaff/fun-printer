@@ -11,6 +11,35 @@ export interface GrayImage {
   gray: Uint8Array;
 }
 
+/** Tone controls tuned for thermal paper (see docs/07-image-processing.md). */
+export interface ToneOptions {
+  /**
+   * Gamma > 1 darkens midtones — thermal paper prints light without it.
+   * The original app had a gamma-handling path; default here: 2.0.
+   */
+  gamma?: number;
+  /** Linear contrast slope around mid-gray (1 = unchanged). */
+  contrast?: number;
+  /** Additive brightness offset (-100..100). */
+  brightness?: number;
+}
+
+/** Apply gamma/contrast/brightness BEFORE dithering (darkens → stronger print). */
+export function applyTone(image: GrayImage, options: ToneOptions = {}): GrayImage {
+  const { gamma = 1, contrast = 1, brightness = 0 } = options;
+  if (gamma === 1 && contrast === 1 && brightness === 0) return image;
+  // 256-entry lookup keeps it fast for repeat calls.
+  const lut = new Uint8Array(256);
+  for (let v = 0; v < 256; v++) {
+    let out = 255 * Math.pow(v / 255, gamma);
+    out = (out - 128) * contrast + 128 + brightness;
+    lut[v] = Math.max(0, Math.min(255, Math.round(out)));
+  }
+  const gray = new Uint8Array(image.gray.length);
+  for (let i = 0; i < gray.length; i++) gray[i] = lut[image.gray[i]];
+  return { ...image, gray };
+}
+
 /** Extract grayscale (Rec. 601 luma, as the original RGB2Gray) from ImageData. */
 export function toGray(image: ImageData): GrayImage {
   const { width, height, data } = image;
@@ -27,13 +56,14 @@ export function toGray(image: ImageData): GrayImage {
 export function ditherToLines(
   image: GrayImage,
   mode: "floyd" | "threshold" = "floyd",
+  threshold = 170,
 ): Uint8Array[] {
   const { width, height, gray } = image;
   const out = new Uint8Array(gray.length);
   if (mode === "threshold") {
-    for (let i = 0; i < gray.length; i++) out[i] = gray[i] < 128 ? 1 : 0;
+    for (let i = 0; i < gray.length; i++) out[i] = gray[i] < threshold ? 1 : 0;
   } else {
-    floydSteinberg(gray, width, height, out);
+    floydSteinberg(gray, width, height, out, threshold);
   }
   const rows: Uint8Array[] = [];
   const bytesPerRow = Math.ceil(width / 8);
@@ -53,13 +83,14 @@ function floydSteinberg(
   width: number,
   height: number,
   out: Uint8Array,
+  threshold: number,
 ): void {
   const buf = new Int16Array(gray);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
       const old = buf[idx];
-      const next = old < 128 ? 0 : 255;
+      const next = old < threshold ? 0 : 255;
       out[idx] = next === 0 ? 1 : 0; // black = 1
       const err = old - next;
       const push = (dx: number, dy: number, factor: number) => {

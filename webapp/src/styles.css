@@ -192,8 +192,26 @@ label.inline {
   gap: 0.5rem;
 }
 
+.sliders {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.5rem 1.25rem;
+  margin-top: 0.75rem;
+}
+
+.sliders label.inline {
+  justify-content: space-between;
+}
+
+.sliders strong {
+  min-width: 2.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 input[type="range"] {
   width: 220px;
+  flex: 1;
   accent-color: var(--accent);
 }
 

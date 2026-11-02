@@ -22,15 +22,16 @@ export function getPrinter(): Printer {
   return printer;
 }
 
-/** Print pre-encoded lines with the current density; resolves on completion. */
+/** Print pre-encoded lines with the current tone/print settings; resolves on completion. */
 export async function printLines(
   lines: Uint8Array[],
   density: number,
+  quality: number,
   onDone: () => void,
   onError: (message: string) => void,
 ): Promise<void> {
   try {
-    await getPrinter().print(lines, { density });
+    await getPrinter().print(lines, { density, quality });
     onDone();
   } catch (error) {
     onError(error instanceof Error ? error.message : String(error));

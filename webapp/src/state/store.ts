@@ -20,6 +20,14 @@ export interface AppState {
   imageName: string | null;
   dither: "floyd" | "threshold";
   density: number;
+  /** Tone preprocessing (thermal paper needs darkening, see docs/07). */
+  gamma: number;
+  contrast: number;
+  brightness: number;
+  /** Binarization threshold (original app used 170, not 128). */
+  threshold: number;
+  /** A4 quality level 1..5 (live MX10 used 4). */
+  quality: number;
   error: string | null;
 }
 
@@ -35,6 +43,11 @@ let state: AppState = {
   imageName: null,
   dither: "floyd",
   density: 200,
+  gamma: 2.0,
+  contrast: 1.0,
+  brightness: 0,
+  threshold: 170,
+  quality: 4,
   error: null,
 };
 
