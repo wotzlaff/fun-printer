@@ -3,11 +3,15 @@
 Standalone React UI for the MX10 thermal printer (and compatible "51 78" boards).
 Pure client-side: printing runs over **Web Bluetooth**, no backend.
 
+**Live (GitHub Pages):** <https://wotzlaff.github.io/fun-printer/>
+(deployed automatically on every push to `main` via the Actions workflow; the
+workflow also runs the protocol test suite before deploying)
+
 ## Requirements
 
 - **Chrome or Edge** (desktop or Android) – Web Bluetooth only exists there;
   Safari/iOS and Firefox do not work.
-- **HTTPS or localhost** (Web Bluetooth requirement).
+- **HTTPS or localhost** (Web Bluetooth requirement) – the Pages URL satisfies this.
 - The printer must be turned on and in pairing range.
 
 ## Run
@@ -15,9 +19,15 @@ Pure client-side: printing runs over **Web Bluetooth**, no backend.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm run test       # protocol unit tests (23 checks incl. live-capture CRCs)
-npm run build      # production build → dist/
+npm run test       # protocol unit tests (25 checks incl. live-capture CRCs)
+npm run build      # production build → dist/ (CI=true → base /fun-printer/)
 ```
+
+### Pages deployment
+
+The workflow `.github/workflows/deploy-pages.yml` builds and deploys on every
+push to `main`. One-time setup (repo owner):
+Settings → Pages → Build and deployment → **Source: GitHub Actions**.
 
 ## Features (v1: photo printing)
 

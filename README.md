@@ -6,6 +6,9 @@ as the basis for an **alternative UI**.
 
 → **Start here: [`docs/README.md`](docs/README.md)** (quick summary + index)
 
+**Try the app:** <https://wotzlaff.github.io/fun-printer/>
+(Chrome/Edge only – Web Bluetooth; deployed from `main` via Actions)
+
 ## Structure
 
 ```
